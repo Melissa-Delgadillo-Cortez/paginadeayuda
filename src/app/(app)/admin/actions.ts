@@ -291,35 +291,3 @@ export async function deleteContact(id: number): Promise<Result> {
   return { ok: true };
 }
 
-/** Reemplaza TODO el rol de contactos (importación desde Excel). */
-export async function importContacts(rows: ContactInput[]): Promise<Result> {
-  try {
-    await requireAdmin();
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
-  }
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return { ok: false, error: "No se detectaron contactos en el archivo." };
-  }
-  if (rows.length > 5000) {
-    return { ok: false, error: "Demasiadas filas (máx. 5000)." };
-  }
-
-  const supabase = await createClient();
-  const { error: delErr } = await supabase
-    .from("contacts")
-    .delete()
-    .gte("id", 0);
-  if (delErr) return { ok: false, error: `No se pudo reemplazar: ${delErr.message}` };
-
-  for (let i = 0; i < rows.length; i += 50) {
-    const { error } = await supabase
-      .from("contacts")
-      .insert(rows.slice(i, i + 50));
-    if (error) return { ok: false, error: `Error importando: ${error.message}` };
-  }
-
-  revalidatePath("/contactos");
-  revalidatePath("/admin/contactos");
-  return { ok: true };
-}

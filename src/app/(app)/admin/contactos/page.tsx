@@ -14,10 +14,11 @@ export default async function AdminContactsPage() {
         Contactos de emergencia
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        Edita contactos o reimporta el rol completo desde un Excel actualizado.
+        Edita contactos o asigna directamente quién está de turno por ciudad.
       </p>
       <div className="mt-5">
-        <ContactsManager rows={rows ?? []} />
+        {/* eslint-disable-next-line react-hooks/purity -- server component: se evalúa una vez por request */}
+        <ContactsManager rows={rows ?? []} now={Date.now()} />
       </div>
     </div>
   );

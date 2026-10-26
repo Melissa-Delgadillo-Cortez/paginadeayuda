@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { saveContact, deleteContact, importContacts } from "@/app/(app)/admin/actions";
-import { parseWorkbook } from "@/lib/parse-rol.mjs";
+import { useState, useTransition } from "react";
+import { saveContact, deleteContact } from "@/app/(app)/admin/actions";
 import type { Contact } from "@/components/contacts-view";
 
 const toLocalInput = (iso: string | null) =>
@@ -18,16 +17,52 @@ const textToEsc = (t: string) =>
     return { name, phone, email };
   }).filter((e) => e.name || e.phone || e.email);
 
-export function ContactsManager({ rows }: { rows: Contact[] }) {
+export function ContactsManager({
+  rows,
+  now,
+}: {
+  rows: Contact[];
+  now: number;
+}) {
   const [pending, startTransition] = useTransition();
   const [area, setArea] = useState("");
   const [editing, setEditing] = useState<Partial<Contact> | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+
+  const rotationAreas = [
+    ...new Set(rows.filter((r) => r.end_at).map((r) => r.area)),
+  ];
+  const [dutyArea, setDutyArea] = useState(rotationAreas[0] ?? "");
+  const [dutyGrp, setDutyGrp] = useState("");
+  const [dutyPerson, setDutyPerson] = useState("");
+  const [dutyNew, setDutyNew] = useState("");
+  const [dutyEnd, setDutyEnd] = useState("");
 
   const areas = [...new Set(rows.map((r) => r.area))].sort();
   const visible = rows.filter((r) => !area || r.area === area);
+
+  const dutyGrps = [
+    ...new Set(
+      rows.filter((r) => r.area === dutyArea && r.end_at).map((r) => r.grp)
+    ),
+  ].sort();
+  const dutyPersons = [
+    ...new Map(
+      rows
+        .filter((r) => r.area === dutyArea && r.grp === dutyGrp && r.person)
+        .map((r) => [r.person, r])
+    ).values(),
+  ];
+  const currentDuty = rows.filter(
+    (r) =>
+      r.area === dutyArea &&
+      r.grp === dutyGrp &&
+      r.start_at &&
+      new Date(r.start_at).getTime() <= now &&
+      r.end_at &&
+      new Date(r.end_at).getTime() >= now
+  );
 
   function flash(m: string) {
     setMsg(m);
@@ -70,42 +105,135 @@ export function ContactsManager({ rows }: { rows: Contact[] }) {
     });
   }
 
-  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  function onAssignDuty() {
+    if (!dutyGrp) return setErr("Selecciona la ciudad/grupo.");
+    if (!dutyPerson && !dutyNew) return setErr("Selecciona o escribe la persona de turno.");
+    if (!dutyEnd) return setErr("Indica hasta cuándo dura el turno.");
     setErr(null);
-    try {
-      const XLSX = (await import("xlsx")).default;
-      const wb = XLSX.read(await file.arrayBuffer());
-      const sheets = wb.SheetNames.map((name) => ({
-        name,
-        rows: XLSX.utils.sheet_to_json(wb.Sheets[name], {
-          header: 1,
-          defval: "",
-        }),
-      }));
-      const { contacts, areas: importedAreas, warnings } = parseWorkbook(
-        sheets as { name: string; rows: unknown[][] }[]
-      ) as { contacts: import("@/app/(app)/admin/actions").ContactInput[]; areas: string[]; warnings: string[] };
-      if (
-        !confirm(
-          `Se importarán ${contacts.length} contactos en ${importedAreas.length} áreas, REEMPLAZANDO todo el rol actual.\n\n${warnings.join("\n")}\n\n¿Continuar?`
-        )
-      )
-        return;
-      startTransition(async () => {
-        const res = await importContacts(contacts);
-        if (!res.ok) return setErr(res.error);
-        flash(`Importados ${contacts.length} contactos.`);
+    const person = dutyPerson === "__new__" ? dutyNew.trim() : dutyPerson;
+    const prev = dutyPersons.find((r) => r.person === person);
+    const maxPos = Math.max(
+      0,
+      ...rows.filter((r) => r.area === dutyArea).map((r) => r.position)
+    );
+    startTransition(async () => {
+      const res = await saveContact({
+        area: dutyArea,
+        grp: dutyGrp,
+        person,
+        phone: prev?.phone ?? "",
+        email: prev?.email ?? "",
+        start_at: new Date().toISOString(),
+        end_at: new Date(dutyEnd).toISOString(),
+        position: maxPos + 1,
       });
-    } catch {
-      setErr("No se pudo leer el archivo. Debe ser .xlsx");
-    }
+      if (!res.ok) return setErr(res.error);
+      setDutyPerson("");
+      setDutyNew("");
+      setDutyEnd("");
+      flash(`${person} quedó de turno en ${dutyGrp} hasta ${new Date(dutyEnd).toLocaleDateString("es-BO")}.`);
+    });
   }
 
   return (
     <div>
+      {/* ===== Asignar quién está de turno ===== */}
+      {rotationAreas.length > 0 && (
+        <div className="mb-5 rounded-2xl border border-lbc/30 bg-lbc/5 p-5">
+          <h2 className="text-sm font-bold text-slate-800">
+            Asignar turno ahora
+          </h2>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-xs font-medium text-slate-500">
+              Área
+              <select
+                value={dutyArea}
+                onChange={(e) => {
+                  setDutyArea(e.target.value);
+                  setDutyGrp("");
+                  setDutyPerson("");
+                }}
+                className="mt-1 block w-44 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+              >
+                {rotationAreas.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-slate-500">
+              Ciudad/Grupo
+              <select
+                value={dutyGrp}
+                onChange={(e) => {
+                  setDutyGrp(e.target.value);
+                  setDutyPerson("");
+                }}
+                className="mt-1 block w-44 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+              >
+                <option value="">Seleccionar…</option>
+                {dutyGrps.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-slate-500">
+              Persona de turno
+              <select
+                value={dutyPerson}
+                onChange={(e) => setDutyPerson(e.target.value)}
+                className="mt-1 block w-52 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+              >
+                <option value="">Seleccionar…</option>
+                {dutyPersons.map((r) => (
+                  <option key={r.id} value={r.person}>
+                    {r.person}
+                  </option>
+                ))}
+                <option value="__new__">— Otra persona —</option>
+              </select>
+            </label>
+            {dutyPerson === "__new__" && (
+              <label className="text-xs font-medium text-slate-500">
+                Nombre
+                <input
+                  value={dutyNew}
+                  onChange={(e) => setDutyNew(e.target.value)}
+                  placeholder="Nombre completo"
+                  className="mt-1 block w-52 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+                />
+              </label>
+            )}
+            <label className="text-xs font-medium text-slate-500">
+              Turno hasta
+              <input
+                type="datetime-local"
+                value={dutyEnd}
+                onChange={(e) => setDutyEnd(e.target.value)}
+                className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+              />
+            </label>
+            <button
+              onClick={onAssignDuty}
+              disabled={pending}
+              className="rounded-lg bg-lbc px-4 py-2 text-sm font-semibold text-white hover:bg-lbc-dark disabled:opacity-60"
+            >
+              {pending ? "Asignando…" : "Asignar de turno"}
+            </button>
+          </div>
+          {dutyGrp && (
+            <p className="mt-2 text-xs text-slate-500">
+              {currentDuty.length > 0
+                ? `De turno ahora en ${dutyGrp}: ${currentDuty.map((r) => r.person).join(", ")}`
+                : `Nadie de turno ahora en ${dutyGrp}.`}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select
           value={area}
@@ -135,20 +263,6 @@ export function ContactsManager({ rows }: { rows: Contact[] }) {
         >
           + Nuevo contacto
         </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={pending}
-          className="rounded-lg border border-lbc px-4 py-2 text-sm font-semibold text-lbc hover:bg-lbc/10 disabled:opacity-50"
-        >
-          ⬆ Importar Excel
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".xlsx,.xls"
-          className="hidden"
-          onChange={onImportFile}
-        />
       </div>
 
       {err && (
