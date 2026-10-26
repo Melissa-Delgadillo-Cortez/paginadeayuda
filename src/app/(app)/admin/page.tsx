@@ -3,10 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminPage() {
   const supabase = await createClient();
-  const [{ count: users }, { count: articles }] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("articles").select("id", { count: "exact", head: true }),
-  ]);
+  const [{ count: users }, { count: articles }, { count: contacts }] =
+    await Promise.all([
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase.from("articles").select("id", { count: "exact", head: true }),
+      supabase.from("contacts").select("id", { count: "exact", head: true }),
+    ]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -34,6 +36,16 @@ export default async function AdminPage() {
           <p className="mt-1 font-semibold text-slate-800">Contenido</p>
           <p className="mt-1 text-xs text-slate-500">
             Crear, editar y eliminar artículos de ayuda.
+          </p>
+        </Link>
+        <Link
+          href="/admin/contactos"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-lbc transition-colors"
+        >
+          <p className="text-3xl font-bold text-lbc">{contacts ?? 0}</p>
+          <p className="mt-1 font-semibold text-slate-800">Contactos</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Rol de turnos de emergencia e importación desde Excel.
           </p>
         </Link>
       </div>

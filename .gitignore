@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+.env*
+
+# archivos fuente de datos locales
+rol.xlsx
+*.xlsx
+server.log

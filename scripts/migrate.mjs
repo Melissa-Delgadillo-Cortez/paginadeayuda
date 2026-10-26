@@ -25,10 +25,13 @@ if (!PASSWORD) {
   process.exit(1);
 }
 
-const sql = fs.readFileSync(
-  path.join(process.cwd(), "supabase/migrations/0001_init.sql"),
-  "utf8"
-);
+const migDir = path.join(process.cwd(), "supabase/migrations");
+const sql = fs
+  .readdirSync(migDir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => fs.readFileSync(path.join(migDir, f), "utf8"))
+  .join("\n");
 
 const candidates = [
   `postgresql://postgres:${encodeURIComponent(PASSWORD)}@db.${REF}.supabase.co:5432/postgres`,

@@ -57,6 +57,13 @@ export default async function AppLayout({
             </svg>
             Buscar
           </Link>
+          <Link
+            href="/contactos"
+            title="Contactos de emergencia"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-lbc transition-colors"
+          >
+            📞 Contactos
+          </Link>
           {isAdmin && (
             <Link
               href="/admin"

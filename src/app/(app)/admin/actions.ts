@@ -230,3 +230,96 @@ export async function deleteArticle(id: number): Promise<Result> {
   revalidatePath("/admin/articulos");
   return { ok: true };
 }
+
+/* ==================== CONTACTOS / ROL DE TURNOS ==================== */
+
+export type ContactInput = {
+  area: string;
+  grp?: string;
+  person?: string;
+  phone?: string;
+  email?: string;
+  support_name?: string;
+  support_phone?: string;
+  support_email?: string;
+  escalation?: { name: string; phone: string; email: string }[];
+  start_at?: string | null;
+  end_at?: string | null;
+  extra?: { label: string; value: string }[];
+  position?: number;
+};
+
+export async function saveContact(input: ContactInput & { id?: number }): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  if (!input.area?.trim()) return { ok: false, error: "El área es obligatoria." };
+
+  const supabase = await createClient();
+  const { id, ...fields } = input;
+  const payload = {
+    ...fields,
+    area: fields.area.trim(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = id
+    ? await supabase.from("contacts").update(payload).eq("id", id)
+    : await supabase.from("contacts").insert(payload);
+  if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+
+  revalidatePath("/contactos");
+  revalidatePath("/admin/contactos");
+  return { ok: true };
+}
+
+export async function deleteContact(id: number): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("contacts").delete().eq("id", id);
+  if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
+
+  revalidatePath("/contactos");
+  revalidatePath("/admin/contactos");
+  return { ok: true };
+}
+
+/** Reemplaza TODO el rol de contactos (importación desde Excel). */
+export async function importContacts(rows: ContactInput[]): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { ok: false, error: "No se detectaron contactos en el archivo." };
+  }
+  if (rows.length > 5000) {
+    return { ok: false, error: "Demasiadas filas (máx. 5000)." };
+  }
+
+  const supabase = await createClient();
+  const { error: delErr } = await supabase
+    .from("contacts")
+    .delete()
+    .gte("id", 0);
+  if (delErr) return { ok: false, error: `No se pudo reemplazar: ${delErr.message}` };
+
+  for (let i = 0; i < rows.length; i += 50) {
+    const { error } = await supabase
+      .from("contacts")
+      .insert(rows.slice(i, i + 50));
+    if (error) return { ok: false, error: `Error importando: ${error.message}` };
+  }
+
+  revalidatePath("/contactos");
+  revalidatePath("/admin/contactos");
+  return { ok: true };
+}
