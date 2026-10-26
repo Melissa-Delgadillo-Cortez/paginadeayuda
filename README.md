@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LBC — Página de Ayuda
 
-## Getting Started
+Base de conocimiento interna de LBC Seguros: procedimientos, pólizas e
+instructivos con búsqueda instantánea. Acceso solo con login.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, TypeScript, Tailwind CSS 4)
+- **Supabase** (Auth + Postgres + Row Level Security)
+- **Vercel** (hosting)
+
+## Roles
+
+| Rol | Permisos |
+|---|---|
+| `user` | Leer y buscar artículos |
+| `admin` | Todo lo anterior + crear/editar/eliminar artículos y gestionar usuarios |
+
+## Seguridad
+
+- Sesiones con cookies httpOnly/secure (Supabase Auth)
+- Row Level Security: escritura de artículos y gestión de perfiles solo para admin, a nivel de base de datos
+- Todo el contenido (texto e imágenes `/media/*`) requiere sesión
+- HTML de artículos sanitizado en guardado y renderizado (`sanitize-html`)
+- Headers de seguridad: CSP, HSTS, X-Frame-Options, etc.
+- Contraseñas mín. 10 caracteres; rate limiting de login por Supabase
+
+## Desarrollo local
 
 ```bash
+npm install
+cp env.example .env.local          # completar claves de Supabase
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup de base de datos (una sola vez)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Crear proyecto en [supabase.com](https://supabase.com)
+2. En **SQL Editor**, ejecutar `supabase/migrations/0001_init.sql`
+3. Copiar las claves a `.env.local`
+4. Importar contenido y crear el primer admin:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+node scripts/seed.mjs
+```
 
-## Learn More
+## Reimportar el documento Word
 
-To learn more about Next.js, take a look at the following resources:
+```powershell
+Copy-Item "PAGINA DE AYUDA..docx" doc.zip
+Expand-Archive doc.zip extracted
+node scripts/import-docx.mjs extracted
+node scripts/seed.mjs
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy en Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Subir el repo a GitHub
+2. En vercel.com: **Import Project** → seleccionar el repo
+3. Agregar las env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`)
+4. Deploy

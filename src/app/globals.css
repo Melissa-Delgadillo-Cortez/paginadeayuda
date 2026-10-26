@@ -1,26 +1,97 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f6fb;
+  --foreground: #0f172a;
+  --lbc-blue: #0b4fa0;
+  --lbc-blue-dark: #083a78;
+  --lbc-accent: #0e9fd8;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-lbc: var(--lbc-blue);
+  --color-lbc-dark: var(--lbc-blue-dark);
+  --color-lbc-accent: var(--lbc-accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ======= Contenido importado de artículos ======= */
+.article-content {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: #1e293b;
+}
+.article-content p {
+  margin: 0.55rem 0;
+}
+.article-content h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--lbc-blue-dark);
+  margin: 1.4rem 0 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid #dbe7f5;
+}
+.article-content h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--lbc-blue);
+  margin: 1.1rem 0 0.4rem;
+}
+.article-content ul,
+.article-content ol {
+  margin: 0.5rem 0 0.9rem;
+  padding-left: 1.5rem;
+}
+.article-content ul {
+  list-style: disc;
+}
+.article-content ol {
+  list-style: decimal;
+}
+.article-content li {
+  margin: 0.25rem 0;
+}
+.article-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  margin: 0.6rem 0;
+  background: #fff;
+}
+.article-content a {
+  color: var(--lbc-blue);
+  text-decoration: underline;
+  word-break: break-all;
+}
+.article-content strong,
+.article-content b {
+  color: #0f172a;
+}
+.article-content table {
+  border-collapse: collapse;
+  margin: 0.8rem 0;
+  font-size: 0.9rem;
+}
+.article-content th,
+.article-content td {
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem 0.6rem;
+}
+.article-content th {
+  background: #eaf1fa;
+}
+mark {
+  background: #fef08a;
+  border-radius: 0.2rem;
+  padding: 0 0.1rem;
 }
