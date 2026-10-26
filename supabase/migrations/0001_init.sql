@@ -42,27 +42,34 @@ as $$
 $$;
 
 -- Perfiles: cada usuario lee solo el suyo; admin lee y modifica todos
+drop policy if exists profiles_select_own on public.profiles;
 create policy profiles_select_own on public.profiles
   for select to authenticated using (auth.uid() = id);
 
+drop policy if exists profiles_select_admin on public.profiles;
 create policy profiles_select_admin on public.profiles
   for select to authenticated using (public.is_admin());
 
+drop policy if exists profiles_update_admin on public.profiles;
 create policy profiles_update_admin on public.profiles
   for update to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
 -- Artículos: cualquier usuario autenticado lee; solo admin escribe
+drop policy if exists articles_select on public.articles;
 create policy articles_select on public.articles
   for select to authenticated using (true);
 
+drop policy if exists articles_insert on public.articles;
 create policy articles_insert on public.articles
   for insert to authenticated with check (public.is_admin());
 
+drop policy if exists articles_update on public.articles;
 create policy articles_update on public.articles
   for update to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
+drop policy if exists articles_delete on public.articles;
 create policy articles_delete on public.articles
   for delete to authenticated using (public.is_admin());
 
