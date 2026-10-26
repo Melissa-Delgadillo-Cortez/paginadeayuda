@@ -38,6 +38,25 @@ export default async function AppLayout({
             </span>
           </Link>
           <div className="flex-1" />
+          <Link
+            href="/"
+            title="Ir a inicio / buscar"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-lbc transition-colors"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            Buscar
+          </Link>
           {isAdmin && (
             <Link
               href="/admin"
@@ -64,7 +83,7 @@ export default async function AppLayout({
 
       <div className="mx-auto flex w-full max-w-7xl flex-1">
         <aside className="hidden md:block w-64 shrink-0 border-r border-slate-200 bg-white/60">
-          <SidebarNav articles={articles ?? []} />
+          <SidebarNav articles={articles ?? []} isAdmin={isAdmin} />
         </aside>
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-8">{children}</main>
       </div>

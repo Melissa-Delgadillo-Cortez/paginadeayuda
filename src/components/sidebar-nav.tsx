@@ -6,7 +6,13 @@ import { usePathname } from "next/navigation";
 
 type Item = { id: number; title: string };
 
-export function SidebarNav({ articles }: { articles: Item[] }) {
+export function SidebarNav({
+  articles,
+  isAdmin,
+}: {
+  articles: Item[];
+  isAdmin: boolean;
+}) {
   const pathname = usePathname();
   const [filter, setFilter] = useState("");
 
@@ -50,6 +56,16 @@ export function SidebarNav({ articles }: { articles: Item[] }) {
           })}
         </ul>
       </div>
+      {isAdmin && (
+        <div className="border-t border-slate-200 p-3">
+          <Link
+            href="/admin/articulos/nuevo"
+            className="block rounded-lg bg-lbc px-3 py-2 text-center text-xs font-semibold text-white hover:bg-lbc-dark transition-colors"
+          >
+            + Agregar artículo
+          </Link>
+        </div>
+      )}
     </nav>
   );
 }

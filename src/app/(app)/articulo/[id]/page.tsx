@@ -40,6 +40,12 @@ export default async function ArticlePage({
 
   return (
     <article className="mx-auto max-w-3xl">
+      <Link
+        href="/"
+        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-lbc transition-colors"
+      >
+        ← Volver a buscar
+      </Link>
       <div className="mb-4 flex items-start justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-800 sm:text-2xl">
           {article.title}
