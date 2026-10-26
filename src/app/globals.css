@@ -3,9 +3,9 @@
 :root {
   --background: #f4f6fb;
   --foreground: #0f172a;
-  --lbc-blue: #0b4fa0;
-  --lbc-blue-dark: #083a78;
-  --lbc-accent: #0e9fd8;
+  --lbc-blue: #0064dd;
+  --lbc-blue-dark: #004fb0;
+  --lbc-accent: #00b900;
 }
 
 @theme inline {
