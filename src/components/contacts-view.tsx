@@ -16,12 +16,13 @@ export type Contact = {
   escalation: { name: string; phone: string; email: string }[];
   start_at: string | null;
   end_at: string | null;
+  duty_type: string;
   extra: { label: string; value: string }[];
   position: number;
 };
 
 const DAY = 86400000;
-const RED_DAYS = 3;
+const RED_DAYS = 1;
 
 function daysLeft(endAt: string, now: number) {
   return (new Date(endAt).getTime() - now) / DAY;
@@ -222,6 +223,11 @@ export function ContactsView({
                   </div>
                   <p className="mt-1.5 text-base font-bold text-slate-800">
                     {r.person}
+                    {r.duty_type === "apoyo" && (
+                      <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700 align-middle">
+                        Apoyo
+                      </span>
+                    )}
                   </p>
                   <ContactLinks r={r} />
                   <p className="mt-1.5 text-[11px] text-slate-500">

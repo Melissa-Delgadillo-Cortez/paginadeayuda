@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Logo } from "@/components/logo";
 import { LogoutButton } from "@/components/logout-button";
 import { SidebarNav } from "@/components/sidebar-nav";
+import { SearchModal } from "@/components/search-modal";
 
 export default async function AppLayout({
   children,
@@ -27,6 +28,23 @@ export default async function AppLayout({
 
   const isAdmin = profile?.role === "admin";
 
+  // Recordatorio de actividad (Supabase pausa tras ~7 días sin uso)
+  let daysIdle: number | null = null;
+  if (isAdmin) {
+    const { data: last } = await supabase
+      .from("audit_log")
+      .select("created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (last) {
+      const now = Date.now(); // eslint-disable-line react-hooks/purity -- server component
+      daysIdle = Math.floor(
+        (now - new Date(last.created_at).getTime()) / 86400000
+      );
+    }
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -38,31 +56,41 @@ export default async function AppLayout({
             </span>
           </Link>
           <div className="flex-1" />
-          <Link
-            href="/"
-            title="Ir a inicio / buscar"
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-lbc transition-colors"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
+          {isAdmin && daysIdle !== null && (
+            <span
+              title="Días sin actividad en la página (Supabase se pausa tras ~7 días)"
+              className={`hidden sm:inline rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                daysIdle >= 6
+                  ? "bg-red-100 text-red-700"
+                  : daysIdle >= 4
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-500"
+              }`}
             >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-            Buscar
-          </Link>
+              {daysIdle}d
+            </span>
+          )}
+          <SearchModal />
           <Link
             href="/contactos"
             title="Contactos de emergencia"
             className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-lbc transition-colors"
           >
-            📞 Contactos
+            📞 <span className="hidden sm:inline">Contactos</span>
+          </Link>
+          <Link
+            href="/enlaces"
+            title="Enlaces externos"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-lbc transition-colors"
+          >
+            🔗 <span className="hidden sm:inline">Enlaces</span>
+          </Link>
+          <Link
+            href="/rota"
+            title="Horarios de operadores"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-lbc transition-colors"
+          >
+            � <span className="hidden sm:inline">ROTA</span>
           </Link>
           {isAdmin && (
             <Link

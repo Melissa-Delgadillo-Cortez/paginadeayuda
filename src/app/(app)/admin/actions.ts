@@ -28,6 +28,34 @@ async function requireAdmin(): Promise<string> {
   return user.id;
 }
 
+/** Registra un evento en la bitácora (no interrumpe el flujo si falla). */
+async function audit(event: string, detail: string) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await supabase
+      .from("audit_log")
+      .insert({ user_id: user?.id, email: user?.email ?? "", event, detail });
+  } catch {
+    /* bitácora es best-effort */
+  }
+}
+
+/** Llamada por cualquier usuario tras iniciar sesión (RLS exige user_id propio). */
+export async function logLogin(): Promise<Result> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+  const { error } = await supabase
+    .from("audit_log")
+    .insert({ user_id: user.id, email: user.email ?? "", event: "login" });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 /* ==================== USUARIOS ==================== */
 
 export async function createUser(input: {
@@ -190,6 +218,7 @@ export async function saveArticle(input: {
       .update(payload)
       .eq("id", input.id);
     if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+    await audit("article_update", title);
     revalidatePath("/");
     revalidatePath(`/articulo/${input.id}`);
     revalidatePath("/admin/articulos");
@@ -210,6 +239,7 @@ export async function saveArticle(input: {
     .single();
   if (error) return { ok: false, error: `No se pudo crear: ${error.message}` };
 
+  await audit("article_create", title);
   revalidatePath("/");
   revalidatePath("/admin/articulos");
   return { ok: true, id: data.id };
@@ -226,6 +256,7 @@ export async function deleteArticle(id: number): Promise<Result> {
   const { error } = await supabase.from("articles").delete().eq("id", id);
   if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
 
+  await audit("article_delete", `Artículo #${id}`);
   revalidatePath("/");
   revalidatePath("/admin/articulos");
   return { ok: true };
@@ -245,6 +276,7 @@ export type ContactInput = {
   escalation?: { name: string; phone: string; email: string }[];
   start_at?: string | null;
   end_at?: string | null;
+  duty_type?: "principal" | "apoyo";
   extra?: { label: string; value: string }[];
   position?: number;
 };
@@ -270,6 +302,68 @@ export async function saveContact(input: ContactInput & { id?: number }): Promis
     : await supabase.from("contacts").insert(payload);
   if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
 
+  await audit(id ? "contact_update" : "contact_create", `${payload.area} · ${payload.grp} · ${payload.person}`);
+  revalidatePath("/contactos");
+  revalidatePath("/admin/contactos");
+  return { ok: true };
+}
+
+/** Incidencia: termina el turno actual y asigna un reemplazo hasta su fin. */
+export async function incidentReassign(input: {
+  id: number;
+  person: string;
+  phone?: string;
+  email?: string;
+  reason: string;
+}): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const person = input.person.trim();
+  if (!person) return { ok: false, error: "Indica el reemplazo." };
+  if (!input.reason.trim()) return { ok: false, error: "Indica el motivo." };
+
+  const supabase = await createClient();
+  const { data: cur } = await supabase
+    .from("contacts")
+    .select("*")
+    .eq("id", input.id)
+    .single();
+  if (!cur) return { ok: false, error: "Turno no encontrado." };
+
+  const nowIso = new Date().toISOString();
+  const note = {
+    label: "Incidencia",
+    value: `${cur.person} → ${person} (${input.reason.trim()})`,
+  };
+
+  const { error: upErr } = await supabase
+    .from("contacts")
+    .update({
+      end_at: nowIso,
+      extra: [...(cur.extra ?? []), note],
+      updated_at: nowIso,
+    })
+    .eq("id", input.id);
+  if (upErr) return { ok: false, error: `No se pudo cerrar el turno: ${upErr.message}` };
+
+  const { error: insErr } = await supabase.from("contacts").insert({
+    area: cur.area,
+    grp: cur.grp,
+    person,
+    phone: input.phone ?? cur.phone,
+    email: input.email ?? cur.email,
+    start_at: nowIso,
+    end_at: cur.end_at,
+    duty_type: cur.duty_type,
+    extra: [note],
+    position: cur.position + 1,
+  });
+  if (insErr) return { ok: false, error: `No se pudo asignar el reemplazo: ${insErr.message}` };
+
+  await audit("incident", `${cur.area} · ${cur.grp}: ${note.value}`);
   revalidatePath("/contactos");
   revalidatePath("/admin/contactos");
   return { ok: true };
@@ -286,8 +380,135 @@ export async function deleteContact(id: number): Promise<Result> {
   const { error } = await supabase.from("contacts").delete().eq("id", id);
   if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
 
+  await audit("contact_delete", `Contacto #${id}`);
   revalidatePath("/contactos");
   revalidatePath("/admin/contactos");
+  return { ok: true };
+}
+
+/* ==================== ENLACES ==================== */
+
+export async function saveLink(input: {
+  id?: number;
+  name: string;
+  url: string;
+  position?: number;
+}): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const name = input.name.trim();
+  let url = input.url.trim();
+  if (!name) return { ok: false, error: "El nombre es obligatorio." };
+  if (!url) return { ok: false, error: "La URL es obligatoria." };
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+
+  const supabase = await createClient();
+  const { id, ...fields } = { ...input, name, url };
+  const { error } = id
+    ? await supabase.from("links").update(fields).eq("id", id)
+    : await supabase.from("links").insert(fields);
+  if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+
+  await audit(id ? "link_update" : "link_create", name);
+  revalidatePath("/enlaces");
+  return { ok: true };
+}
+
+export async function deleteLink(id: number): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("links").delete().eq("id", id);
+  if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
+  await audit("link_delete", `Enlace #${id}`);
+  revalidatePath("/enlaces");
+  return { ok: true };
+}
+
+/* ==================== ROTA: operadores y horarios ==================== */
+
+export type ShiftInput = {
+  dow: number;
+  start_min: number;
+  end_min: number;
+  is_libre: boolean;
+};
+
+export async function saveOperator(input: {
+  id?: number;
+  name: string;
+  position?: number;
+}): Promise<Result & { id?: number }> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "El nombre es obligatorio." };
+
+  const supabase = await createClient();
+  const { id, ...fields } = { ...input, name };
+  const q = id
+    ? supabase.from("operators").update(fields).eq("id", id).select("id").single()
+    : supabase.from("operators").insert(fields).select("id").single();
+  const { data, error } = await q;
+  if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+
+  await audit(id ? "operator_update" : "operator_create", name);
+  revalidatePath("/rota");
+  return { ok: true, id: data.id };
+}
+
+export async function deleteOperator(id: number): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("operators").delete().eq("id", id);
+  if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
+  await audit("operator_delete", `Operador #${id}`);
+  revalidatePath("/rota");
+  return { ok: true };
+}
+
+/** Reemplaza el horario semanal completo de un operador (7 filas). */
+export async function saveShifts(
+  operatorId: number,
+  shifts: ShiftInput[]
+): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const clean = shifts
+    .filter((s) => Number.isInteger(s.dow) && s.dow >= 0 && s.dow <= 6)
+    .map((s) => ({
+      operator_id: operatorId,
+      dow: s.dow,
+      start_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.start_min)),
+      end_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.end_min)),
+      is_libre: !!s.is_libre,
+    }));
+  if (clean.length === 0) return { ok: false, error: "Sin días que guardar." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("operator_shifts")
+    .upsert(clean, { onConflict: "operator_id,dow" });
+  if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+
+  await audit("shifts_update", `Operador #${operatorId}`);
+  revalidatePath("/rota");
   return { ok: true };
 }
 

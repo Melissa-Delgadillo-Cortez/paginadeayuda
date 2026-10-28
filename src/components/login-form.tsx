@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { logLogin } from "@/app/(app)/admin/actions";
 
 export function LoginForm() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export function LoginForm() {
       setLoading(false);
       return;
     }
+    logLogin(); // bitácora (best-effort, no bloquea el ingreso)
     router.replace("/");
     router.refresh();
   }

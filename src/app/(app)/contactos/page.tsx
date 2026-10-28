@@ -27,8 +27,8 @@ export default async function ContactsPage() {
         Contactos de emergencia
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        Roles de turno por área y ciudad. En rojo: turnos que vencen en 3 días o
-        menos.
+        Roles de turno por área y ciudad. En rojo: turnos que vencen hoy o
+        mañana.
       </p>
       <div className="mt-5">
         <ContactsView

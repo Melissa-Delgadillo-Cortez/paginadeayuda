@@ -45,7 +45,17 @@ export default async function AdminPage() {
           <p className="text-3xl font-bold text-lbc">{contacts ?? 0}</p>
           <p className="mt-1 font-semibold text-slate-800">Contactos</p>
           <p className="mt-1 text-xs text-slate-500">
-            Rol de turnos de emergencia e importación desde Excel.
+            Asignar turnos e incidencias por área y ciudad.
+          </p>
+        </Link>
+        <Link
+          href="/admin/bitacora"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-lbc transition-colors"
+        >
+          <p className="text-3xl font-bold text-lbc">📋</p>
+          <p className="mt-1 font-semibold text-slate-800">Bitácora</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Quién ingresó y qué artículos se crearon o editaron.
           </p>
         </Link>
       </div>

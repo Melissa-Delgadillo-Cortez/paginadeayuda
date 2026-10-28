@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveContact, deleteContact } from "@/app/(app)/admin/actions";
+import {
+  saveContact,
+  deleteContact,
+  incidentReassign,
+} from "@/app/(app)/admin/actions";
 import type { Contact } from "@/components/contacts-view";
 
 const toLocalInput = (iso: string | null) =>
@@ -37,7 +41,13 @@ export function ContactsManager({
   const [dutyGrp, setDutyGrp] = useState("");
   const [dutyPerson, setDutyPerson] = useState("");
   const [dutyNew, setDutyNew] = useState("");
+  const [dutyStart, setDutyStart] = useState("");
   const [dutyEnd, setDutyEnd] = useState("");
+  const [dutyType, setDutyType] = useState<"principal" | "apoyo">("principal");
+  const [incOpen, setIncOpen] = useState(false);
+  const [incPerson, setIncPerson] = useState("");
+  const [incNew, setIncNew] = useState("");
+  const [incReason, setIncReason] = useState("");
 
   const areas = [...new Set(rows.map((r) => r.area))].sort();
   const visible = rows.filter((r) => !area || r.area === area);
@@ -123,15 +133,45 @@ export function ContactsManager({
         person,
         phone: prev?.phone ?? "",
         email: prev?.email ?? "",
-        start_at: new Date().toISOString(),
+        start_at: dutyStart
+          ? new Date(dutyStart).toISOString()
+          : new Date().toISOString(),
         end_at: new Date(dutyEnd).toISOString(),
+        duty_type: dutyType,
         position: maxPos + 1,
       });
       if (!res.ok) return setErr(res.error);
       setDutyPerson("");
       setDutyNew("");
+      setDutyStart("");
       setDutyEnd("");
+      setDutyType("principal");
       flash(`${person} quedó de turno en ${dutyGrp} hasta ${new Date(dutyEnd).toLocaleDateString("es-BO")}.`);
+    });
+  }
+
+  function onIncident() {
+    const person = incPerson === "__new__" ? incNew.trim() : incPerson;
+    if (!person) return setErr("Selecciona o escribe el reemplazo.");
+    if (!incReason.trim()) return setErr("Indica el motivo de la incidencia.");
+    const cur = currentDuty[0];
+    if (!cur) return setErr("No hay turno activo en esta ciudad.");
+    setErr(null);
+    const prev = dutyPersons.find((r) => r.person === person);
+    startTransition(async () => {
+      const res = await incidentReassign({
+        id: cur.id,
+        person,
+        phone: prev?.phone ?? cur.phone,
+        email: prev?.email ?? cur.email,
+        reason: incReason,
+      });
+      if (!res.ok) return setErr(res.error);
+      setIncOpen(false);
+      setIncPerson("");
+      setIncNew("");
+      setIncReason("");
+      flash(`Incidencia registrada: ${person} reemplaza a ${cur.person} en ${dutyGrp}.`);
     });
   }
 
@@ -208,6 +248,28 @@ export function ContactsManager({
               </label>
             )}
             <label className="text-xs font-medium text-slate-500">
+              Tipo
+              <select
+                value={dutyType}
+                onChange={(e) =>
+                  setDutyType(e.target.value as "principal" | "apoyo")
+                }
+                className="mt-1 block w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+              >
+                <option value="principal">Principal</option>
+                <option value="apoyo">Ejecutivo de apoyo</option>
+              </select>
+            </label>
+            <label className="text-xs font-medium text-slate-500">
+              Desde (vacío = ahora)
+              <input
+                type="datetime-local"
+                value={dutyStart}
+                onChange={(e) => setDutyStart(e.target.value)}
+                className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+              />
+            </label>
+            <label className="text-xs font-medium text-slate-500">
               Turno hasta
               <input
                 type="datetime-local"
@@ -225,11 +287,81 @@ export function ContactsManager({
             </button>
           </div>
           {dutyGrp && (
-            <p className="mt-2 text-xs text-slate-500">
-              {currentDuty.length > 0
-                ? `De turno ahora en ${dutyGrp}: ${currentDuty.map((r) => r.person).join(", ")}`
-                : `Nadie de turno ahora en ${dutyGrp}.`}
-            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-slate-500">
+                {currentDuty.length > 0
+                  ? `De turno ahora en ${dutyGrp}: ${currentDuty
+                      .map(
+                        (r) =>
+                          `${r.person}${r.duty_type === "apoyo" ? " (apoyo)" : ""}`
+                      )
+                      .join(", ")}`
+                  : `Nadie de turno ahora en ${dutyGrp}.`}
+              </p>
+              {currentDuty.length > 0 && (
+                <button
+                  onClick={() => setIncOpen(!incOpen)}
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                >
+                  ⚠ Incidencia / reasignar
+                </button>
+              )}
+            </div>
+          )}
+
+          {incOpen && currentDuty.length > 0 && (
+            <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50/60 p-4">
+              <p className="text-xs font-semibold text-amber-800">
+                Reasignar turno de {currentDuty[0].person} en {dutyGrp} — su
+                turno termina ahora y el reemplazo cubre hasta{" "}
+                {new Date(currentDuty[0].end_at!).toLocaleString("es-BO")}.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <label className="text-xs font-medium text-slate-500">
+                  Reemplazo
+                  <select
+                    value={incPerson}
+                    onChange={(e) => setIncPerson(e.target.value)}
+                    className="mt-1 block w-52 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+                  >
+                    <option value="">Seleccionar…</option>
+                    {dutyPersons.map((r) => (
+                      <option key={r.id} value={r.person}>
+                        {r.person}
+                      </option>
+                    ))}
+                    <option value="__new__">— Otra persona —</option>
+                  </select>
+                </label>
+                {incPerson === "__new__" && (
+                  <label className="text-xs font-medium text-slate-500">
+                    Nombre
+                    <input
+                      value={incNew}
+                      onChange={(e) => setIncNew(e.target.value)}
+                      placeholder="Nombre completo"
+                      className="mt-1 block w-52 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+                    />
+                  </label>
+                )}
+                <label className="text-xs font-medium text-slate-500">
+                  Motivo
+                  <input
+                    value={incReason}
+                    onChange={(e) => setIncReason(e.target.value)}
+                    placeholder="Vacaciones, enfermedad, incidencia…"
+                    className="mt-1 block w-64 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+                  />
+                </label>
+                <button
+                  onClick={onIncident}
+                  disabled={pending}
+                  className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {pending ? "Reasignando…" : "Confirmar reasignación"}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -322,48 +454,68 @@ export function ContactsManager({
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
               />
             </label>
-            <label className="text-xs font-medium text-slate-500">
-              Ejecutivo de apoyo
-              <input
-                value={editing.support_name ?? ""}
-                onChange={(e) =>
-                  setEditing({ ...editing, support_name: e.target.value })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
-              />
-            </label>
-            <label className="text-xs font-medium text-slate-500">
-              Tel. apoyo
-              <input
-                value={editing.support_phone ?? ""}
-                onChange={(e) =>
-                  setEditing({ ...editing, support_phone: e.target.value })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
-              />
-            </label>
-            <label className="text-xs font-medium text-slate-500">
-              Inicio turno (opcional)
-              <input
-                type="datetime-local"
-                value={toLocalInput(editing.start_at ?? null)}
-                onChange={(e) =>
-                  setEditing({ ...editing, start_at: fromLocalInput(e.target.value) })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
-              />
-            </label>
-            <label className="text-xs font-medium text-slate-500">
-              Fin turno (opcional)
-              <input
-                type="datetime-local"
-                value={toLocalInput(editing.end_at ?? null)}
-                onChange={(e) =>
-                  setEditing({ ...editing, end_at: fromLocalInput(e.target.value) })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
-              />
-            </label>
+            {editing.id && (
+              <>
+                <label className="text-xs font-medium text-slate-500">
+                  Ejecutivo de apoyo
+                  <input
+                    value={editing.support_name ?? ""}
+                    onChange={(e) =>
+                      setEditing({ ...editing, support_name: e.target.value })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Tel. apoyo
+                  <input
+                    value={editing.support_phone ?? ""}
+                    onChange={(e) =>
+                      setEditing({ ...editing, support_phone: e.target.value })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Tipo de turno
+                  <select
+                    value={editing.duty_type ?? "principal"}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        duty_type: e.target.value as "principal" | "apoyo",
+                      })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+                  >
+                    <option value="principal">Principal</option>
+                    <option value="apoyo">Ejecutivo de apoyo</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Inicio turno
+                  <input
+                    type="datetime-local"
+                    value={toLocalInput(editing.start_at ?? null)}
+                    onChange={(e) =>
+                      setEditing({ ...editing, start_at: fromLocalInput(e.target.value) })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Fin turno
+                  <input
+                    type="datetime-local"
+                    value={toLocalInput(editing.end_at ?? null)}
+                    onChange={(e) =>
+                      setEditing({ ...editing, end_at: fromLocalInput(e.target.value) })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
+                  />
+                </label>
+              </>
+            )}
           </div>
           <label className="mt-3 block text-xs font-medium text-slate-500">
             Escalamientos (uno por línea: Nombre | teléfono | correo)
