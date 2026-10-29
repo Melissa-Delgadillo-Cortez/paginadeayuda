@@ -90,7 +90,21 @@ export default async function AppLayout({
             title="Horarios de operadores"
             className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-lbc transition-colors"
           >
-            � <span className="hidden sm:inline">ROTA</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+              <path d="M12 14v3l2 1" />
+            </svg>
+            <span className="hidden sm:inline">ROTA</span>
           </Link>
           {isAdmin && (
             <Link
