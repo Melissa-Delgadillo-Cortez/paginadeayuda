@@ -259,7 +259,7 @@ export function RotaView({
                 onClick={startEdit}
                 className="rounded-lg border border-lbc px-3 py-1.5 text-xs font-semibold text-lbc hover:bg-lbc/10"
               >
-                Editar horario de {selOp.name}
+                Editar horario
               </button>
               <button
                 onClick={() => {
