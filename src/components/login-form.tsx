@@ -30,7 +30,11 @@ export function LoginForm() {
       setLoading(false);
       return;
     }
-    logLogin(); // bitácora (best-effort, no bloquea el ingreso)
+    try {
+      await logLogin(); // bitácora: best-effort, no bloquea el ingreso
+    } catch {
+      /* ignore */
+    }
     router.replace("/");
     router.refresh();
   }

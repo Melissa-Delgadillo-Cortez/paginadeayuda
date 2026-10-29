@@ -15,9 +15,6 @@ export default async function LinksPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="text-2xl font-bold text-slate-800">Enlaces</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Accesos rápidos a sitios externos. Se abren en una pestaña nueva.
-      </p>
       <div className="mt-5">
         <LinksManager
           links={links ?? []}

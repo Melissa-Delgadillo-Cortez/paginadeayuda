@@ -56,6 +56,19 @@ export async function logLogin(): Promise<Result> {
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+/** Llamada antes de cerrar sesión para registrar la salida. */
+export async function logLogout(): Promise<Result> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: true }; // ya no hay sesión, nada que registrar
+  const { error } = await supabase
+    .from("audit_log")
+    .insert({ user_id: user.id, email: user.email ?? "", event: "logout" });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 /* ==================== USUARIOS ==================== */
 
 export async function createUser(input: {

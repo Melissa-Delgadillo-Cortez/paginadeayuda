@@ -180,18 +180,28 @@ export function RotaView({
   return (
     <div>
       {/* Contador en vivo */}
-      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-        <span className="relative flex h-3 w-3">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-          <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
-        </span>
-        <p className="text-sm font-semibold text-emerald-800">
-          {nowMin === null
-            ? "Cargando…"
-            : `${online.length} operador${online.length === 1 ? "" : "es"} deben estar en turno ahora (${minToStr(nowMin)})`}
-        </p>
+      <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-3 w-3 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+          </span>
+          <p className="text-sm font-bold tracking-wide text-emerald-800">
+            {nowMin === null ? "…" : online.length}{" "}
+            <span className="font-semibold">AGENTES EN LÍNEA</span>
+          </p>
+        </div>
         {online.length > 0 && (
-          <p className="text-xs text-emerald-700">{online.map((o) => o.name).join(", ")}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
+            {online.map((o) => (
+              <span
+                key={o.id}
+                className="rounded-full bg-emerald-100/60 px-2.5 py-0.5 text-xs font-medium text-emerald-600/80"
+              >
+                {o.name}
+              </span>
+            ))}
+          </div>
         )}
       </div>
 

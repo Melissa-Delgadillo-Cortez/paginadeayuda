@@ -111,7 +111,7 @@ export function ContactsView({
   const matchFilter = (r: Contact) =>
     (!grp || r.grp === grp) &&
     (!q ||
-      [r.person, r.grp, r.phone, r.email, r.support_name]
+      [r.person, r.grp, r.area, r.phone, r.email, r.support_name]
         .join(" ")
         .toLowerCase()
         .includes(q));
@@ -143,7 +143,7 @@ export function ContactsView({
           type="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filtrar por nombre, teléfono…"
+          placeholder="Filtrar por área, nombre, teléfono…"
           className="w-52 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-lbc"
         />
         <div className="flex flex-wrap gap-1.5">

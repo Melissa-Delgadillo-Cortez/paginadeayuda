@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const LABELS: Record<string, { label: string; cls: string }> = {
   login: { label: "Ingreso", cls: "bg-sky-100 text-sky-700" },
+  logout: { label: "Salida", cls: "bg-slate-200 text-slate-600" },
   article_create: { label: "Artículo creado", cls: "bg-emerald-100 text-emerald-700" },
   article_update: { label: "Artículo editado", cls: "bg-emerald-50 text-emerald-600" },
   article_delete: { label: "Artículo eliminado", cls: "bg-red-100 text-red-700" },
