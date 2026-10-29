@@ -50,6 +50,7 @@ export function ContactsView({
   now: number;
 }) {
   const [area, setArea] = useState(areas[0] ?? "");
+  const [areaFilter, setAreaFilter] = useState("");
   const [grp, setGrp] = useState("");
   const [filter, setFilter] = useState("");
   const [rows, setRows] = useState<Contact[]>([]);
@@ -120,9 +121,22 @@ export function ContactsView({
 
   return (
     <div>
+      {/* Buscador de áreas */}
+      <input
+        type="search"
+        value={areaFilter}
+        onChange={(e) => setAreaFilter(e.target.value)}
+        placeholder="Filtrar áreas…"
+        className="mb-2 w-56 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-lbc"
+      />
+
       {/* Pestañas de área */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1">
-        {areas.map((a) => (
+        {areas
+          .filter((a) =>
+            a.toLowerCase().includes(areaFilter.trim().toLowerCase())
+          )
+          .map((a) => (
           <button
             key={a}
             onClick={() => selectArea(a)}
