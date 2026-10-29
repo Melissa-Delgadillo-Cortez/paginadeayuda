@@ -190,6 +190,7 @@ export async function saveArticle(input: {
   title: string;
   html: string;
   position?: number;
+  parent_id?: number | null;
 }): Promise<Result & { id?: number }> {
   let me: string;
   try {
@@ -202,12 +203,39 @@ export async function saveArticle(input: {
   if (!title) return { ok: false, error: "El título es obligatorio." };
   if (title.length > 200) return { ok: false, error: "Título demasiado largo." };
 
-  const html = cleanArticleHtml(input.html);
   const supabase = await createClient();
+
+  // Validar padre y evitar ciclos (A dentro de B dentro de A)
+  let parentId: number | null = input.parent_id ?? null;
+  if (parentId) {
+    if (parentId === input.id)
+      return { ok: false, error: "Un artículo no puede ser su propio padre." };
+    let cursor: number | null = parentId;
+    for (let depth = 0; depth < 10 && cursor; depth++) {
+      if (cursor === input.id)
+        return {
+          ok: false,
+          error: "Eso crearía un ciclo: elige un padre que no sea sub-página de este artículo.",
+        };
+      const res: { data: { parent_id: number | null } | null } =
+        await supabase
+          .from("articles")
+          .select("parent_id")
+          .eq("id", cursor)
+          .maybeSingle();
+      if (!res.data) return { ok: false, error: "La página padre no existe." };
+      cursor = res.data.parent_id;
+    }
+  } else {
+    parentId = null;
+  }
+
+  const html = cleanArticleHtml(input.html);
   const payload = {
     title,
     html,
     plain_text: htmlToText(html),
+    parent_id: parentId,
     updated_at: new Date().toISOString(),
     updated_by: me,
   };
@@ -435,6 +463,7 @@ export async function deleteLink(id: number): Promise<Result> {
 
 export type ShiftInput = {
   dow: number;
+  block?: number;
   start_min: number;
   end_min: number;
   is_libre: boolean;
@@ -480,7 +509,7 @@ export async function deleteOperator(id: number): Promise<Result> {
   return { ok: true };
 }
 
-/** Reemplaza el horario semanal completo de un operador (7 filas). */
+/** Reemplaza el horario semanal completo de un operador (hasta 2 turnos por día). */
 export async function saveShifts(
   operatorId: number,
   shifts: ShiftInput[]
@@ -495,6 +524,7 @@ export async function saveShifts(
     .map((s) => ({
       operator_id: operatorId,
       dow: s.dow,
+      block: s.block === 2 ? 2 : 1,
       start_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.start_min)),
       end_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.end_min)),
       is_libre: !!s.is_libre,
@@ -502,9 +532,13 @@ export async function saveShifts(
   if (clean.length === 0) return { ok: false, error: "Sin días que guardar." };
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { error: delErr } = await supabase
     .from("operator_shifts")
-    .upsert(clean, { onConflict: "operator_id,dow" });
+    .delete()
+    .eq("operator_id", operatorId);
+  if (delErr) return { ok: false, error: `No se pudo guardar: ${delErr.message}` };
+
+  const { error } = await supabase.from("operator_shifts").insert(clean);
   if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
 
   await audit("shifts_update", `Operador #${operatorId}`);

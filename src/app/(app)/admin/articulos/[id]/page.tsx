@@ -12,11 +12,14 @@ export default async function EditArticlePage({
   if (!Number.isInteger(numId)) notFound();
 
   const supabase = await createClient();
-  const { data: article } = await supabase
-    .from("articles")
-    .select("id, title, html")
-    .eq("id", numId)
-    .single();
+  const [{ data: article }, { data: articles }] = await Promise.all([
+    supabase
+      .from("articles")
+      .select("id, title, html, parent_id")
+      .eq("id", numId)
+      .single(),
+    supabase.from("articles").select("id, title, parent_id").order("position"),
+  ]);
 
   if (!article) notFound();
 
@@ -25,7 +28,7 @@ export default async function EditArticlePage({
       <h1 className="mb-4 text-2xl font-bold text-slate-800">
         Editar artículo
       </h1>
-      <ArticleEditor article={article} />
+      <ArticleEditor article={article} articles={articles ?? []} />
     </div>
   );
 }

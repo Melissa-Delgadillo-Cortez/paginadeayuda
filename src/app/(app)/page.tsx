@@ -8,7 +8,7 @@ export default async function HomePage() {
   const supabase = await createClient();
   const { data: articles } = await supabase
     .from("articles")
-    .select("id, title, updated_at")
+    .select("id, title, updated_at, parent_id")
     .order("updated_at", { ascending: false });
 
   // eslint-disable-next-line react-hooks/purity -- server component: una vez por request
@@ -49,7 +49,16 @@ export default async function HomePage() {
                 }`}
               >
                 <span className="flex items-start justify-between gap-2">
-                  <span>{a.title}</span>
+                  <span>
+                    {a.parent_id && (
+                      <span className="mr-1 text-[10px] font-normal text-slate-400">
+                        {(articles ?? []).find((p) => p.id === a.parent_id)
+                          ?.title ?? ""}
+                        ›
+                      </span>
+                    )}
+                    {a.title}
+                  </span>
                   {fresh && (
                     <span className="mt-0.5 shrink-0 rounded-full bg-emerald-200 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
                       NUEVO

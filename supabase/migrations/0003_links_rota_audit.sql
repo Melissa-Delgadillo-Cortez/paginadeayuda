@@ -18,7 +18,7 @@ alter table public.links enable row level security;
 drop policy if exists links_select on public.links;
 create policy links_select on public.links
   for select to authenticated using (true);
-drop policy if exists links_write on public.links;
+drop policy if exists links_insert on public.links;
 create policy links_insert on public.links
   for insert to authenticated with check (public.is_admin());
 drop policy if exists links_update on public.links;

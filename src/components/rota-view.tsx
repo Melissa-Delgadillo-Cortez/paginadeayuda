@@ -12,6 +12,7 @@ type Shift = {
   id: number;
   operator_id: number;
   dow: number;
+  block: number;
   start_min: number;
   end_min: number;
   is_libre: boolean;
@@ -50,7 +51,14 @@ export function RotaView({
   const [newName, setNewName] = useState("");
   const [editName, setEditName] = useState("");
   const [week, setWeek] = useState<
-    { start: string; end: string; libre: boolean }[]
+    {
+      libre: boolean;
+      t1s: string;
+      t1e: string;
+      hasT2: boolean;
+      t2s: string;
+      t2e: string;
+    }[]
   >([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -76,8 +84,10 @@ export function RotaView({
           shifts.some((s) => s.operator_id === op.id && isOnShift(s, nowDow, nowMin))
         );
 
-  const opShifts = (opId: number) =>
-    DAYS.map((_, dow) => shifts.find((s) => s.operator_id === opId && s.dow === dow));
+  const dayRows = (opId: number, dow: number) =>
+    shifts
+      .filter((s) => s.operator_id === opId && s.dow === dow)
+      .sort((a, b) => a.block - b.block);
 
   function flash(m: string) {
     setMsg(m);
@@ -90,15 +100,21 @@ export function RotaView({
     if (!selOp) return;
     setEditName(selOp.name);
     setWeek(
-      opShifts(selOp.id).map((s) =>
-        s
-          ? {
-              start: minToStr(s.start_min),
-              end: minToStr(s.end_min),
-              libre: s.is_libre,
-            }
-          : { start: "08:00", end: "18:00", libre: false }
-      )
+      DAYS.map((_, dow) => {
+        const dayRows = shifts
+          .filter((s) => s.operator_id === selOp.id && s.dow === dow)
+          .sort((a, b) => a.block - b.block);
+        const b1 = dayRows.find((r) => r.block === 1);
+        const b2 = dayRows.find((r) => r.block === 2);
+        return {
+          libre: dayRows.some((r) => r.is_libre),
+          t1s: b1 ? minToStr(b1.start_min) : "08:00",
+          t1e: b1 ? minToStr(b1.end_min) : "13:00",
+          hasT2: !!b2,
+          t2s: b2 ? minToStr(b2.start_min) : "14:30",
+          t2e: b2 ? minToStr(b2.end_min) : "18:30",
+        };
+      })
     );
     setEditMode(true);
     setErr(null);
@@ -130,12 +146,30 @@ export function RotaView({
       }
       const res = await saveShifts(
         selOp.id,
-        week.map((d, dow) => ({
-          dow,
-          start_min: strToMin(d.start || "0:0"),
-          end_min: strToMin(d.end || "0:0"),
-          is_libre: d.libre,
-        }))
+        week.flatMap((d, dow) => {
+          if (d.libre)
+            return [
+              { dow, block: 1, start_min: 0, end_min: 0, is_libre: true },
+            ];
+          const rows = [
+            {
+              dow,
+              block: 1,
+              start_min: strToMin(d.t1s || "0:0"),
+              end_min: strToMin(d.t1e || "0:0"),
+              is_libre: false,
+            },
+          ];
+          if (d.hasT2)
+            rows.push({
+              dow,
+              block: 2,
+              start_min: strToMin(d.t2s || "0:0"),
+              end_min: strToMin(d.t2e || "0:0"),
+              is_libre: false,
+            });
+          return rows;
+        })
       );
       if (!res.ok) return setErr(res.error);
       setEditMode(false);
@@ -249,9 +283,11 @@ export function RotaView({
               </tr>
             </thead>
             <tbody>
-              {opShifts(selOp.id).map((s, dow) => {
+              {DAYS.map((_, dow) => {
+                const rows = dayRows(selOp.id, dow);
                 const today = dow === nowDow;
-                const active = s && nowMin !== null && isOnShift(s, nowDow, nowMin);
+                const active =
+                  nowMin !== null && rows.some((s) => isOnShift(s, nowDow, nowMin));
                 return (
                   <tr
                     key={dow}
@@ -266,12 +302,17 @@ export function RotaView({
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-600">
-                      {!s ? (
+                      {rows.length === 0 ? (
                         <span className="text-slate-400">Sin horario</span>
-                      ) : s.is_libre ? (
+                      ) : rows[0].is_libre ? (
                         <span className="font-semibold text-amber-600">Libre</span>
                       ) : (
-                        `${minToStr(s.start_min)} – ${minToStr(s.end_min)}`
+                        rows
+                          .filter((r) => !r.is_libre)
+                          .map(
+                            (r) => `${minToStr(r.start_min)} – ${minToStr(r.end_min)}`
+                          )
+                          .join("  ·  ")
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-xs">
@@ -322,13 +363,16 @@ export function RotaView({
                 </label>
                 {!week[dow]?.libre && (
                   <>
+                    <span className="text-[10px] font-semibold text-slate-400">
+                      T1
+                    </span>
                     <input
                       type="time"
-                      value={week[dow]?.start ?? "08:00"}
+                      value={week[dow]?.t1s ?? "08:00"}
                       onChange={(e) =>
                         setWeek(
                           week.map((w, i) =>
-                            i === dow ? { ...w, start: e.target.value } : w
+                            i === dow ? { ...w, t1s: e.target.value } : w
                           )
                         )
                       }
@@ -337,16 +381,63 @@ export function RotaView({
                     <span className="text-xs text-slate-400">a</span>
                     <input
                       type="time"
-                      value={week[dow]?.end ?? "18:00"}
+                      value={week[dow]?.t1e ?? "13:00"}
                       onChange={(e) =>
                         setWeek(
                           week.map((w, i) =>
-                            i === dow ? { ...w, end: e.target.value } : w
+                            i === dow ? { ...w, t1e: e.target.value } : w
                           )
                         )
                       }
                       className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-lbc"
                     />
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={week[dow]?.hasT2 ?? false}
+                        onChange={(e) =>
+                          setWeek(
+                            week.map((w, i) =>
+                              i === dow ? { ...w, hasT2: e.target.checked } : w
+                            )
+                          )
+                        }
+                        className="h-4 w-4 rounded accent-lbc"
+                      />
+                      2º turno
+                    </label>
+                    {week[dow]?.hasT2 && (
+                      <>
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          T2
+                        </span>
+                        <input
+                          type="time"
+                          value={week[dow]?.t2s ?? "14:30"}
+                          onChange={(e) =>
+                            setWeek(
+                              week.map((w, i) =>
+                                i === dow ? { ...w, t2s: e.target.value } : w
+                              )
+                            )
+                          }
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-lbc"
+                        />
+                        <span className="text-xs text-slate-400">a</span>
+                        <input
+                          type="time"
+                          value={week[dow]?.t2e ?? "18:30"}
+                          onChange={(e) =>
+                            setWeek(
+                              week.map((w, i) =>
+                                i === dow ? { ...w, t2e: e.target.value } : w
+                              )
+                            )
+                          }
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-lbc"
+                        />
+                      </>
+                    )}
                   </>
                 )}
               </div>

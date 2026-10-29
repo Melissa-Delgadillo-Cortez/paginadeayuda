@@ -517,17 +517,19 @@ export function ContactsManager({
               </>
             )}
           </div>
-          <label className="mt-3 block text-xs font-medium text-slate-500">
-            Escalamientos (uno por línea: Nombre | teléfono | correo)
-            <textarea
-              rows={3}
-              value={escToText(editing.escalation ?? [])}
-              onChange={(e) =>
-                setEditing({ ...editing, escalation: textToEsc(e.target.value) })
-              }
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-lbc"
-            />
-          </label>
+          {editing.id && (
+            <label className="mt-3 block text-xs font-medium text-slate-500">
+              Escalamientos (uno por línea: Nombre | teléfono | correo)
+              <textarea
+                rows={3}
+                value={escToText(editing.escalation ?? [])}
+                onChange={(e) =>
+                  setEditing({ ...editing, escalation: textToEsc(e.target.value) })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-lbc"
+              />
+            </label>
+          )}
           <div className="mt-4 flex gap-2">
             <button
               onClick={onSave}

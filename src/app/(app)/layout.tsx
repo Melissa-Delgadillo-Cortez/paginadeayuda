@@ -23,7 +23,7 @@ export default async function AppLayout({
       .select("role, full_name, email")
       .eq("id", user.id)
       .single(),
-    supabase.from("articles").select("id, title").order("position"),
+    supabase.from("articles").select("id, title, parent_id").order("position"),
   ]);
 
   const isAdmin = profile?.role === "admin";

@@ -7,20 +7,38 @@ import { cleanArticleHtml } from "@/lib/sanitize";
 
 export function ArticleEditor({
   article,
+  articles,
 }: {
-  article?: { id: number; title: string; html: string };
+  article?: { id: number; title: string; html: string; parent_id: number | null };
+  articles: { id: number; title: string; parent_id: number | null }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(article?.title ?? "");
   const [html, setHtml] = useState(article?.html ?? "");
+  const [parentId, setParentId] = useState<number | "">(article?.parent_id ?? "");
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Candidatos a padre: todo menos el propio artículo
+  const parentOptions = articles
+    .filter((a) => a.id !== article?.id)
+    .map((a) => ({
+      ...a,
+      label: a.parent_id
+        ? `${articles.find((p) => p.id === a.parent_id)?.title ?? ""} › ${a.title}`
+        : a.title,
+    }));
 
   function onSave() {
     setError(null);
     startTransition(async () => {
-      const res = await saveArticle({ id: article?.id, title, html });
+      const res = await saveArticle({
+        id: article?.id,
+        title,
+        html,
+        parent_id: parentId === "" ? null : parentId,
+      });
       if (!res.ok) return setError(res.error);
       router.push(`/articulo/${res.id}`);
       router.refresh();
@@ -41,6 +59,26 @@ export function ArticleEditor({
 
   return (
     <div>
+      <div className="mb-3">
+        <label className="text-xs font-medium text-slate-500">
+          Está dentro de (dejar vacío si es página principal)
+          <select
+            value={parentId}
+            onChange={(e) =>
+              setParentId(e.target.value === "" ? "" : Number(e.target.value))
+            }
+            className="mt-1 w-full max-w-md rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+          >
+            <option value="">— Página principal —</option>
+            {parentOptions.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
           type="text"

@@ -22,7 +22,7 @@ export default async function ArticlePage({
     await Promise.all([
       supabase
         .from("articles")
-        .select("id, title, html, position, updated_at")
+        .select("id, title, html, position, updated_at, parent_id")
         .eq("id", numId)
         .single(),
       supabase
@@ -30,7 +30,10 @@ export default async function ArticlePage({
         .select("role")
         .eq("id", user!.id)
         .single(),
-      supabase.from("articles").select("id, title, position").order("position"),
+      supabase
+        .from("articles")
+        .select("id, title, position, parent_id")
+        .order("position"),
     ]);
 
   if (!article) notFound();
@@ -38,6 +41,8 @@ export default async function ArticlePage({
   const prev = (all ?? []).filter((a) => a.position < article.position).pop();
   const next = (all ?? []).find((a) => a.position > article.position);
   const isAdmin = profile?.role === "admin";
+  const children = (all ?? []).filter((a) => a.parent_id === article.id);
+  const parent = (all ?? []).find((a) => a.id === article.parent_id);
 
   return (
     <article className="mx-auto max-w-3xl">
@@ -50,6 +55,14 @@ export default async function ArticlePage({
         </Link>
         <ArticleMenu articles={all ?? []} currentId={article.id} />
       </div>
+      {parent && (
+        <Link
+          href={`/articulo/${parent.id}`}
+          className="mb-1 inline-block text-xs font-medium text-slate-400 hover:text-lbc"
+        >
+          {parent.title} ›
+        </Link>
+      )}
       <div className="mb-4 flex items-start justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-800 sm:text-2xl">
           {article.title}
@@ -68,6 +81,25 @@ export default async function ArticlePage({
         className="article-content rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
         dangerouslySetInnerHTML={{ __html: cleanArticleHtml(article.html) }}
       />
+
+      {children.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Páginas dentro de este artículo
+          </p>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {children.map((c) => (
+              <Link
+                key={c.id}
+                href={`/articulo/${c.id}`}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:border-lbc hover:text-lbc transition-colors"
+              >
+                {c.title}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 flex items-center justify-between gap-3 text-sm">
         {prev ? (

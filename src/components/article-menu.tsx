@@ -6,7 +6,7 @@ export function ArticleMenu({
   articles,
   currentId,
 }: {
-  articles: { id: number; title: string }[];
+  articles: { id: number; title: string; parent_id?: number | null }[];
   currentId: number;
 }) {
   const router = useRouter();
@@ -19,7 +19,7 @@ export function ArticleMenu({
     >
       {articles.map((a) => (
         <option key={a.id} value={a.id}>
-          {a.title}
+          {a.parent_id ? `↳ ${a.title}` : a.title}
         </option>
       ))}
     </select>
