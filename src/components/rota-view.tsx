@@ -188,7 +188,7 @@ export function RotaView({
           </span>
           <p className="text-sm font-bold tracking-wide text-emerald-800">
             {nowMin === null ? "…" : online.length}{" "}
-            <span className="font-semibold">AGENTES EN LÍNEA</span>
+            <span className="font-semibold">AGENTES EN LISTO</span>
           </p>
         </div>
         {online.length > 0 && (
