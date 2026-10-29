@@ -35,15 +35,17 @@ export default async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isLogin = pathname === "/login";
+  // Solo redirigir navegación normal; los POST (server actions) deben pasar
+  const isNav = request.method === "GET" || request.method === "HEAD";
 
-  if (!user && !isLogin) {
+  if (isNav && !user && !isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
     return NextResponse.redirect(url);
   }
 
-  if (user && isLogin) {
+  if (isNav && user && isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
