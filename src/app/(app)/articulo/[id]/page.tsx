@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cleanArticleHtml } from "@/lib/sanitize";
-import { ArticleMenu } from "@/components/article-menu";
 
 export default async function ArticlePage({
   params,
@@ -46,15 +45,12 @@ export default async function ArticlePage({
 
   return (
     <article className="mx-auto max-w-3xl">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-lbc transition-colors"
-        >
-          ← Volver a buscar
-        </Link>
-        <ArticleMenu articles={all ?? []} currentId={article.id} />
-      </div>
+      <Link
+        href="/"
+        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-lbc transition-colors"
+      >
+        ← Volver a buscar
+      </Link>
       {parent && (
         <Link
           href={`/articulo/${parent.id}`}
