@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cleanArticleHtml } from "@/lib/sanitize";
+import { fmtDateBO } from "@/lib/dates";
 
 export default async function ArticlePage({
   params,
@@ -122,7 +123,7 @@ export default async function ArticlePage({
 
       <p className="mt-4 text-center text-[11px] text-slate-400">
         Última actualización:{" "}
-        {new Date(article.updated_at).toLocaleDateString("es-BO")}
+        {fmtDateBO(article.updated_at)}
       </p>
     </article>
   );

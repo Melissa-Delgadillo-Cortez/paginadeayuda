@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fmtShortBO, fmtDateTimeBO } from "@/lib/dates";
 
 export type Contact = {
   id: number;
@@ -27,18 +28,8 @@ const RED_DAYS = 1;
 function daysLeft(endAt: string, now: number) {
   return (new Date(endAt).getTime() - now) / DAY;
 }
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-BO", {
-    day: "numeric",
-    month: "short",
-  });
-const fmtFull = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-BO", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const fmt = fmtShortBO;
+const fmtFull = fmtDateTimeBO;
 
 export function ContactsView({
   areas,

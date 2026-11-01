@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { fmtDateBO } from "@/lib/dates";
 
 export default async function AdminArticlesPage() {
   const supabase = await createClient();
@@ -37,7 +38,7 @@ export default async function AdminArticlesPage() {
                   {a.title}
                 </p>
                 <p className="text-xs text-slate-400">
-                  Editado: {new Date(a.updated_at).toLocaleDateString("es-BO")}
+                  Editado: {fmtDateBO(a.updated_at)}
                 </p>
               </div>
               <Link

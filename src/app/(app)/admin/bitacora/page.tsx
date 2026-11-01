@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fmtFullBO } from "@/lib/dates";
 
 const LABELS: Record<string, { label: string; cls: string }> = {
   login: { label: "Ingreso", cls: "bg-sky-100 text-sky-700" },
@@ -52,7 +53,7 @@ export default async function BitacoraPage() {
               return (
                 <tr key={e.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">
-                    {new Date(e.created_at).toLocaleString("es-BO")}
+                    {fmtFullBO(e.created_at)}
                   </td>
                   <td className="px-4 py-2 text-xs text-slate-700">{e.email}</td>
                   <td className="px-4 py-2">

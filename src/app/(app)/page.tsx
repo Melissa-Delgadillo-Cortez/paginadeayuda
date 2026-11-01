@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SearchBox } from "@/components/search-box";
+import { fmtDateTimeBO } from "@/lib/dates";
 
 const WEEK = 7 * 86400000;
 
@@ -66,13 +67,7 @@ export default async function HomePage() {
                   )}
                 </span>
                 <span className="mt-1 block text-[10px] font-normal text-slate-400">
-                  {fresh ? "Actualizado" : "Editado"}:{" "}
-                  {ts.toLocaleString("es-BO", {
-                    day: "numeric",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {fresh ? "Actualizado" : "Editado"}: {fmtDateTimeBO(ts)}
                 </span>
               </Link>
             );

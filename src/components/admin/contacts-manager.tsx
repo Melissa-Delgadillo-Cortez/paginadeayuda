@@ -7,6 +7,7 @@ import {
   incidentReassign,
 } from "@/app/(app)/admin/actions";
 import type { Contact } from "@/components/contacts-view";
+import { fmtDateBO, fmtDateTimeBO, fmtShortBO } from "@/lib/dates";
 
 const toLocalInput = (iso: string | null) =>
   iso ? new Date(iso).toISOString().slice(0, 16) : "";
@@ -146,7 +147,7 @@ export function ContactsManager({
       setDutyStart("");
       setDutyEnd("");
       setDutyType("principal");
-      flash(`${person} quedó de turno en ${dutyGrp} hasta ${new Date(dutyEnd).toLocaleDateString("es-BO")}.`);
+      flash(`${person} quedó de turno en ${dutyGrp} hasta ${fmtDateBO(dutyEnd)}.`);
     });
   }
 
@@ -314,7 +315,7 @@ export function ContactsManager({
               <p className="text-xs font-semibold text-amber-800">
                 Reasignar turno de {currentDuty[0].person} en {dutyGrp} — su
                 turno termina ahora y el reemplazo cubre hasta{" "}
-                {new Date(currentDuty[0].end_at!).toLocaleString("es-BO")}.
+                {fmtDateTimeBO(currentDuty[0].end_at!)}.
               </p>
               <div className="mt-3 flex flex-wrap items-end gap-3">
                 <label className="text-xs font-medium text-slate-500">
@@ -575,7 +576,7 @@ export function ContactsManager({
                 </td>
                 <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                   {r.start_at
-                    ? `${new Date(r.start_at).toLocaleDateString("es-BO")} → ${new Date(r.end_at!).toLocaleDateString("es-BO")}`
+                    ? `${fmtShortBO(r.start_at)} → ${fmtShortBO(r.end_at!)}`
                     : "—"}
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
