@@ -5,6 +5,7 @@ import {
   createPendiente,
   gestionarPendiente,
   deletePendiente,
+  clearGestionados,
 } from "@/app/(app)/admin/actions";
 import { fmtDateTimeBO } from "@/lib/dates";
 
@@ -207,9 +208,27 @@ export function PendientesView({
       {/* Historial */}
       {gestionados.length > 0 && (
         <>
-          <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Gestionados
-          </h2>
+          <div className="mb-2 mt-6 flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Gestionados
+            </h2>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  if (confirm("¿Borrar TODO el historial de gestionados?"))
+                    startTransition(async () => {
+                      const res = await clearGestionados();
+                      if (!res.ok) setErr(res.error);
+                      else flash("Historial vaciado.");
+                    });
+                }}
+                disabled={pending}
+                className="rounded-lg border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                Vaciar gestionados
+              </button>
+            )}
+          </div>
           <div className="space-y-2">
             {gestionados.map((p) => (
               <div
@@ -236,6 +255,10 @@ export function PendientesView({
                   )}
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
+                  Dejado por {p.created_name || p.created_email} ·{" "}
+                  {fmtDateTimeBO(p.created_at)}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
                   <span className="font-semibold text-emerald-700">
                     Gestionado por {p.done_name || p.done_email}
                   </span>{" "}

@@ -839,3 +839,19 @@ export async function deleteAviso(id: number): Promise<Result> {
   revalidatePath("/avisos");
   return { ok: true };
 }
+
+/** Borra TODOS los pendientes ya gestionados (limpieza del historial). */
+export async function clearGestionados(): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("pendientes").delete().eq("done", true);
+  if (error) return { ok: false, error: `No se pudo vaciar: ${error.message}` };
+  await audit("pendiente_clear", "Historial de gestionados vaciado");
+  revalidatePath("/pendientes");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
