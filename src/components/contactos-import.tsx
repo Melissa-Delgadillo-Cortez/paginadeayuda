@@ -8,13 +8,17 @@ type Row = { name: string; since: string | null; until: string | null };
 /** Panel de importación de turnos de ejecutivos por Excel (solo admin). */
 export function ContactosImport({
   areas,
+  grps,
 }: {
   areas: string[];
+  grps: Record<string, string[]>;
 }) {
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [area, setArea] = useState(areas[0] ?? "");
   const [grp, setGrp] = useState("");
+  const [customArea, setCustomArea] = useState(false);
+  const [customGrp, setCustomGrp] = useState(false);
   const [sheet, setSheet] = useState("");
   const [sheets, setSheets] = useState<{ name: string; rows: Row[] }[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -68,27 +72,67 @@ export function ContactosImport({
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-xs font-medium text-slate-500">
               Área *
-              <input
-                list="areas-list"
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                placeholder="AUTOMOTORES"
-                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
-              />
-              <datalist id="areas-list">
-                {areas.map((a) => (
-                  <option key={a} value={a} />
-                ))}
-              </datalist>
+              {customArea ? (
+                <input
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                  placeholder="Nueva área…"
+                  autoFocus
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
+                />
+              ) : (
+                <select
+                  value={area}
+                  onChange={(e) => {
+                    if (e.target.value === "__nueva__") {
+                      setCustomArea(true);
+                      setArea("");
+                    } else {
+                      setArea(e.target.value);
+                      setGrp("");
+                    }
+                  }}
+                  className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+                >
+                  {areas.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                  <option value="__nueva__">＋ Nueva área…</option>
+                </select>
+              )}
             </label>
             <label className="text-xs font-medium text-slate-500">
               Ciudad / Grupo
-              <input
-                value={grp}
-                onChange={(e) => setGrp(e.target.value)}
-                placeholder="Santa Cruz, La Paz…"
-                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
-              />
+              {customGrp ? (
+                <input
+                  value={grp}
+                  onChange={(e) => setGrp(e.target.value)}
+                  placeholder="Nueva ciudad…"
+                  autoFocus
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
+                />
+              ) : (
+                <select
+                  value={grp}
+                  onChange={(e) => {
+                    if (e.target.value === "__nueva__") {
+                      setCustomGrp(true);
+                      setGrp("");
+                    } else setGrp(e.target.value);
+                  }}
+                  className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+                >
+                  <option value="">(sin grupo)</option>
+                  {(grps[area] ?? []).map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                  <option value="__nueva__">＋ Nueva…</option>
+                </select>
+              )}
             </label>
             <label className="text-xs font-medium text-slate-500">
               Excel (.xlsx)

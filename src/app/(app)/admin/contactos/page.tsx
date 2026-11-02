@@ -10,6 +10,12 @@ export default async function AdminContactsPage() {
     .order("position");
 
   const areas = [...new Set((rows ?? []).map((r) => r.area).filter(Boolean))];
+  const grps: Record<string, string[]> = {};
+  for (const r of rows ?? []) {
+    if (!r.area || !r.grp) continue;
+    (grps[r.area] ??= []);
+    if (!grps[r.area].includes(r.grp)) grps[r.area].push(r.grp);
+  }
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -20,7 +26,7 @@ export default async function AdminContactsPage() {
         Edita contactos o asigna directamente quién está de turno por ciudad.
       </p>
       <div className="mt-5">
-        <ContactosImport areas={areas} />
+        <ContactosImport areas={areas} grps={grps} />
         {/* eslint-disable-next-line react-hooks/purity -- server component: se evalúa una vez por request */}
         <ContactsManager rows={rows ?? []} now={Date.now()} />
       </div>
