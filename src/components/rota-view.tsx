@@ -421,11 +421,13 @@ export function RotaView({
                 onChange={(e) => pickSheet(e.target.value)}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-lbc"
               >
-                {[...impSheets.keys()].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
+                {[...impSheets.values()]
+                  .filter((s) => s.operators.length > 0)
+                  .map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
               </select>
             )}
           </div>
