@@ -1,13 +1,25 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   saveOperator,
   deleteOperator,
   saveShifts,
+  importRota,
 } from "@/app/(app)/admin/actions";
+import { detectRotaSheets, parseRotaSheet } from "@/lib/parse-rota.mjs";
 
 type Operator = { id: number; name: string; position: number };
+type ParsedDay = {
+  dow: number;
+  libre: boolean;
+  turns: { start: number; end: number }[];
+};
+type ImpRow = {
+  name: string;
+  days: ParsedDay[];
+  sel: number | "new" | "skip";
+};
 type Shift = {
   id: number;
   operator_id: number;
@@ -65,6 +77,12 @@ export function RotaView({
   const [nowMin, setNowMin] = useState<number | null>(null);
   const [nowDow, setNowDow] = useState(0);
 
+  // ---- Importar Excel ----
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [impSheets, setImpSheets] = useState<Map<string, unknown[][]> | null>(null);
+  const [impSheet, setImpSheet] = useState("");
+  const [impRows, setImpRows] = useState<ImpRow[]>([]);
+
   // Reloj en vivo: actualiza cada 30s quiénes deben estar en turno
   useEffect(() => {
     const tick = () => {
@@ -92,6 +110,95 @@ export function RotaView({
   function flash(m: string) {
     setMsg(m);
     setTimeout(() => setMsg(null), 4000);
+  }
+
+  // ---- Importar Excel ----
+  const normName = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+
+  function autoMatch(excelName: string): number | "new" {
+    const n = normName(excelName);
+    const exact = operators.find((o) => normName(o.name) === n);
+    if (exact) return exact.id;
+    const nTok = new Set(n.split(" "));
+    const cand = operators.filter((o) => {
+      const oTok = new Set(normName(o.name).split(" "));
+      const [a, b] = oTok.size <= nTok.size ? [oTok, nTok] : [nTok, oTok];
+      return a.size >= 2 && [...a].every((t) => b.has(t));
+    });
+    return cand.length === 1 ? cand[0].id : "new";
+  }
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setErr(null);
+    try {
+      const XLSX = (await import("xlsx")).default;
+      const wb = XLSX.read(await file.arrayBuffer());
+      const sheets = new Map<string, unknown[][]>(
+        wb.SheetNames.map((name) => [
+          name,
+          XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "" }) as unknown[][],
+        ])
+      );
+      const valid = detectRotaSheets(
+        wb.SheetNames.map((name) => ({ name, rows: sheets.get(name)! }))
+      );
+      if (valid.length === 0)
+        return setErr("No se encontraron hojas con formato ROTA (Nombre + días).");
+      setImpSheets(sheets);
+      pickSheet(valid[valid.length - 1], sheets); // última semana por defecto
+    } catch {
+      setErr("No se pudo leer el archivo. Debe ser .xlsx");
+    }
+  }
+
+  function pickSheet(name: string, sheets?: Map<string, unknown[][]>) {
+    const map = sheets ?? impSheets;
+    if (!map) return;
+    setImpSheet(name);
+    const { operators: ops, warnings } = parseRotaSheet(map.get(name) ?? []);
+    setImpRows(
+      (ops as Omit<ImpRow, "sel">[]).map((o) => ({
+        ...o,
+        sel: autoMatch(o.name),
+      }))
+    );
+    if (warnings.length > 0)
+      setErr(`Avisos del archivo: ${warnings.slice(0, 3).join(" · ")}${warnings.length > 3 ? "…" : ""}`);
+  }
+
+  function onImportConfirm() {
+    const items = impRows
+      .filter((r) => r.sel !== "skip")
+      .map((r) => ({
+        name: r.name,
+        operator_id: r.sel === "new" ? null : (r.sel as number),
+        shifts: r.days.flatMap((d) =>
+          d.libre
+            ? [{ dow: d.dow, block: 1, start_min: 0, end_min: 0, is_libre: true }]
+            : d.turns.map((t, i) => ({
+                dow: d.dow,
+                block: i + 1,
+                start_min: t.start,
+                end_min: t.end,
+                is_libre: false,
+              }))
+        ),
+      }));
+    if (items.length === 0) return setErr("No hay operadores seleccionados.");
+    setErr(null);
+    startTransition(async () => {
+      const res = await importRota(items);
+      if (!res.ok) return setErr(res.error);
+      setImpSheets(null);
+      setImpRows([]);
+      flash(
+        `Importados ${items.length} operadores (${res.created ?? 0} nuevos, ${res.updated ?? 0} actualizados).`
+      );
+    });
   }
 
   const selOp = operators.find((o) => o.id === selected);
@@ -253,6 +360,20 @@ export function RotaView({
           >
             + Agregar operador
           </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={pending}
+            className="rounded-lg border border-lbc px-3 py-1.5 text-xs font-semibold text-lbc hover:bg-lbc/10 disabled:opacity-50"
+          >
+            ⬆ Importar Excel
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={onImportFile}
+          />
           {selOp && !editMode && (
             <>
               <button
@@ -278,6 +399,129 @@ export function RotaView({
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* Preview de importación */}
+      {impRows.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-lbc/40 bg-lbc/5 p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-sm font-bold text-slate-800">
+              Importar ROTA desde Excel
+            </h2>
+            {impSheets && impSheets.size > 1 && (
+              <select
+                value={impSheet}
+                onChange={(e) => pickSheet(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-lbc"
+              >
+                {[...impSheets.keys()].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Revisa a qué operador corresponde cada fila antes de importar.
+            Se reemplaza el horario completo de cada uno.
+          </p>
+          <div className="mt-3 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-slate-50">
+                <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                  <th className="px-3 py-2 font-medium">En el Excel</th>
+                  <th className="px-3 py-2 font-medium">Horario detectado</th>
+                  <th className="px-3 py-2 font-medium">Asignar a</th>
+                </tr>
+              </thead>
+              <tbody>
+                {impRows.map((r, i) => (
+                  <tr key={i} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 text-xs font-medium text-slate-800">
+                      {r.name}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-slate-500">
+                      {r.days
+                        .map(
+                          (d) =>
+                            `${["L", "M", "X", "J", "V", "S", "D"][d.dow]}:${
+                              d.libre
+                                ? "LIBRE"
+                                : d.turns.length === 0
+                                  ? "—"
+                                  : d.turns
+                                      .map(
+                                        (t) =>
+                                          `${minToStr(t.start)}-${minToStr(t.end)}`
+                                      )
+                                      .join("+")
+                            }`
+                        )
+                        .join(" ")}
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={r.sel === "new" || r.sel === "skip" ? r.sel : r.sel}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setImpRows(
+                            impRows.map((x, j) =>
+                              j === i
+                                ? {
+                                    ...x,
+                                    sel:
+                                      v === "new" || v === "skip"
+                                        ? v
+                                        : Number(v),
+                                  }
+                                : x
+                            )
+                          );
+                        }}
+                        className={`w-full max-w-56 rounded-lg border px-2 py-1 text-xs outline-none focus:border-lbc ${
+                          r.sel === "new"
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            : r.sel === "skip"
+                              ? "border-slate-200 text-slate-400"
+                              : "border-slate-300"
+                        }`}
+                      >
+                        {operators.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.name}
+                          </option>
+                        ))}
+                        <option value="new">＋ Crear nuevo operador</option>
+                        <option value="skip">✕ Omitir esta fila</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={onImportConfirm}
+              disabled={pending}
+              className="rounded-lg bg-lbc px-4 py-2 text-sm font-semibold text-white hover:bg-lbc-dark disabled:opacity-60"
+            >
+              {pending
+                ? "Importando…"
+                : `Importar ${impRows.filter((r) => r.sel !== "skip").length} operadores`}
+            </button>
+            <button
+              onClick={() => {
+                setImpSheets(null);
+                setImpRows([]);
+              }}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 

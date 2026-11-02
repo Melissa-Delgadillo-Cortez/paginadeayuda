@@ -610,3 +610,79 @@ export async function saveShifts(
   return { ok: true };
 }
 
+/**
+ * Importa la ROTA desde Excel (previa en cliente).
+ * items: por cada operador detectado, operator_id (existente) o null (crear).
+ */
+export async function importRota(
+  items: {
+    name: string;
+    operator_id: number | null;
+    shifts: ShiftInput[];
+  }[]
+): Promise<Result & { created?: number; updated?: number }> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return { ok: false, error: "Sin operadores para importar." };
+  }
+  if (items.length > 200) return { ok: false, error: "Demasiadas filas (máx. 200)." };
+
+  const supabase = await createClient();
+  const { data: max } = await supabase
+    .from("operators")
+    .select("position")
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let nextPos = (max?.position ?? 0) + 1;
+  let created = 0;
+  let updated = 0;
+
+  for (const it of items) {
+    let opId = it.operator_id;
+    if (opId === null) {
+      const name = it.name.trim();
+      if (!name) continue;
+      const { data: op, error } = await supabase
+        .from("operators")
+        .insert({ name, position: nextPos++ })
+        .select("id")
+        .single();
+      if (error) return { ok: false, error: `No se pudo crear ${name}: ${error.message}` };
+      opId = op.id;
+      created++;
+    } else {
+      updated++;
+    }
+
+    const { error: delErr } = await supabase
+      .from("operator_shifts")
+      .delete()
+      .eq("operator_id", opId);
+    if (delErr) return { ok: false, error: `Error limpiando turnos: ${delErr.message}` };
+
+    const rows = it.shifts
+      .filter((s) => Number.isInteger(s.dow) && s.dow >= 0 && s.dow <= 6)
+      .map((s) => ({
+        operator_id: opId,
+        dow: s.dow,
+        block: s.block === 2 ? 2 : 1,
+        start_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.start_min)),
+        end_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.end_min)),
+        is_libre: !!s.is_libre,
+      }));
+    if (rows.length > 0) {
+      const { error } = await supabase.from("operator_shifts").insert(rows);
+      if (error) return { ok: false, error: `Error en turnos: ${error.message}` };
+    }
+  }
+
+  await audit("rota_import", `${items.length} operadores importados (${created} nuevos)`);
+  revalidatePath("/rota");
+  return { ok: true, created, updated };
+}
+
