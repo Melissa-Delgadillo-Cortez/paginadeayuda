@@ -216,9 +216,25 @@ export function PendientesView({
                 key={p.id}
                 className="rounded-2xl border border-slate-200 bg-white p-4 opacity-80"
               >
-                <p className="text-sm font-semibold text-slate-700 line-through">
-                  {p.title}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-slate-700 line-through">
+                    {p.title}
+                  </p>
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        if (confirm("¿Eliminar este registro?"))
+                          startTransition(async () => {
+                            const res = await deletePendiente(p.id);
+                            if (!res.ok) setErr(res.error);
+                          });
+                      }}
+                      className="shrink-0 text-xs text-slate-300 hover:text-red-500"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
                 <p className="mt-1 text-xs text-slate-500">
                   <span className="font-semibold text-emerald-700">
                     Gestionado por {p.done_name || p.done_email}

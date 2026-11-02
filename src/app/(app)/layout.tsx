@@ -5,7 +5,7 @@ import { Logo } from "@/components/logo";
 import { LogoutButton } from "@/components/logout-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { SearchModal } from "@/components/search-modal";
-import { PendienteAlert } from "@/components/pendiente-alert";
+import { PendientesBell } from "@/components/pendientes-bell";
 
 export default async function AppLayout({
   children,
@@ -78,13 +78,7 @@ export default async function AppLayout({
             </span>
           )}
           <SearchModal />
-          <Link
-            href="/pendientes"
-            title="Pendientes"
-            className="flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
-          >
-            ⚠ <span className="hidden sm:inline">Pendientes</span>
-          </Link>
+          <PendientesBell initial={pendientes ?? []} userId={user.id} />
           <Link
             href="/avisos"
             title="Avisos de ausencias"
@@ -157,7 +151,6 @@ export default async function AppLayout({
         </aside>
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-8">{children}</main>
       </div>
-      <PendienteAlert items={pendientes ?? []} userId={user.id} />
     </div>
   );
 }
