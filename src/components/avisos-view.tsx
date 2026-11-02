@@ -9,8 +9,10 @@ type Aviso = {
   person: string;
   tipo: string;
   detail: string;
+  since_date: string | null;
   until_date: string | null;
   created_email: string;
+  created_name: string;
   created_at: string;
 };
 
@@ -31,6 +33,7 @@ export function AvisosView({
   const [person, setPerson] = useState("");
   const [tipo, setTipo] = useState<"ausente" | "vacaciones" | "otro">("ausente");
   const [detail, setDetail] = useState("");
+  const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -49,10 +52,17 @@ export function AvisosView({
     if (!person.trim()) return setErr("Indica el nombre del ejecutivo.");
     setErr(null);
     startTransition(async () => {
-      const res = await createAviso({ person, tipo, detail, until_date: until || null });
+      const res = await createAviso({
+        person,
+        tipo,
+        detail,
+        since_date: since || null,
+        until_date: until || null,
+      });
       if (!res.ok) return setErr(res.error);
       setPerson("");
       setDetail("");
+      setSince("");
       setUntil("");
       setTipo("ausente");
       setShowForm(false);
@@ -62,14 +72,16 @@ export function AvisosView({
 
   return (
     <div>
-      <div className="mb-4">
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-lbc px-4 py-2 text-sm font-semibold text-white hover:bg-lbc-dark"
-        >
-          + Nuevo aviso
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="mb-4">
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="rounded-lg bg-lbc px-4 py-2 text-sm font-semibold text-white hover:bg-lbc-dark"
+          >
+            + Nuevo aviso
+          </button>
+        </div>
+      )}
 
       {err && (
         <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{err}</p>
@@ -78,7 +90,7 @@ export function AvisosView({
         <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</p>
       )}
 
-      {showForm && (
+      {isAdmin && showForm && (
         <div className="mb-5 rounded-2xl border border-lbc/40 bg-white p-5 shadow-sm">
           <div className="grid gap-3 sm:grid-cols-2">
             <input
@@ -97,7 +109,16 @@ export function AvisosView({
               <option value="otro">Otro</option>
             </select>
             <label className="text-xs font-medium text-slate-500">
-              Hasta cuándo (opcional)
+              Desde (opcional)
+              <input
+                type="date"
+                value={since}
+                onChange={(e) => setSince(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-lbc"
+              />
+            </label>
+            <label className="text-xs font-medium text-slate-500">
+              Hasta (opcional)
               <input
                 type="date"
                 value={until}
@@ -170,8 +191,9 @@ export function AvisosView({
                 <p className="mt-1 text-sm text-slate-600 whitespace-pre-wrap">{a.detail}</p>
               )}
               <p className="mt-1.5 text-[11px] text-slate-400">
-                {a.until_date ? `Hasta ${fmtDateBO(a.until_date + "T12:00:00Z")} · ` : ""}
-                {a.created_email} · {fmtDateTimeBO(a.created_at)}
+                {(a.since_date || a.until_date) &&
+                  `${a.since_date ? fmtDateBO(a.since_date + "T12:00:00Z") : "…"} → ${a.until_date ? fmtDateBO(a.until_date + "T12:00:00Z") : "…"} · `}
+                {a.created_name || a.created_email} · {fmtDateTimeBO(a.created_at)}
               </p>
             </div>
           );

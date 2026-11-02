@@ -31,7 +31,7 @@ export default async function AppLayout({
 
   const { data: pendientes } = await supabase
     .from("pendientes")
-    .select("id, title")
+    .select("id, title, created_by")
     .eq("done", false)
     .order("id");
 
@@ -157,7 +157,7 @@ export default async function AppLayout({
         </aside>
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-8">{children}</main>
       </div>
-      <PendienteAlert items={pendientes ?? []} />
+      <PendienteAlert items={pendientes ?? []} userId={user.id} />
     </div>
   );
 }

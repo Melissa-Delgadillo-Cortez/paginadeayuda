@@ -6,8 +6,10 @@ import Link from "next/link";
 /** Modal rojo con pendientes sin gestionar; se cierra por sesión (recuerda el último id visto). */
 export function PendienteAlert({
   items,
+  userId,
 }: {
-  items: { id: number; title: string }[];
+  items: { id: number; title: string; created_by: string | null }[];
+  userId: string;
 }) {
   const [seen, setSeen] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -16,7 +18,7 @@ export function PendienteAlert({
   const [open, setOpen] = useState(true);
 
   const maxId = Math.max(0, ...items.map((i) => i.id));
-  const nuevos = items.filter((i) => i.id > seen);
+  const nuevos = items.filter((i) => i.id > seen && i.created_by !== userId);
   if (nuevos.length === 0 || !open) return null;
 
   return (

@@ -43,14 +43,19 @@ async function audit(event: string, detail: string) {
   }
 }
 
-/** Verifica sesión (cualquier rol). Devuelve {id,email} o lanza error. */
+/** Verifica sesión (cualquier rol). Devuelve {id,email,name} o lanza error. */
 async function requireUser() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
-  return { id: user.id, email: user.email ?? "" };
+  const { data: p } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .single();
+  return { id: user.id, email: user.email ?? "", name: p?.full_name ?? "" };
 }
 
 /** Llamada por cualquier usuario tras iniciar sesión (RLS exige user_id propio). */
@@ -718,6 +723,7 @@ export async function createPendiente(input: {
     detail: (input.detail ?? "").trim(),
     created_by: me.id,
     created_email: me.email,
+    created_name: me.name,
   });
   if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
 
@@ -748,6 +754,7 @@ export async function gestionarPendiente(
       done: true,
       done_by: me.id,
       done_email: me.email,
+      done_name: me.name,
       done_at: new Date().toISOString(),
       done_note,
     })
@@ -782,11 +789,12 @@ export async function createAviso(input: {
   person: string;
   tipo: "ausente" | "vacaciones" | "otro";
   detail?: string;
+  since_date?: string | null;
   until_date?: string | null;
 }): Promise<Result> {
-  let me;
+  let me: string;
   try {
-    me = await requireUser();
+    me = await requireAdmin();
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
@@ -796,13 +804,20 @@ export async function createAviso(input: {
     return { ok: false, error: "Tipo inválido." };
 
   const supabase = await createClient();
+  const { data: meProfile } = await supabase
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", me)
+    .single();
   const { error } = await supabase.from("avisos").insert({
     person,
     tipo: input.tipo,
     detail: (input.detail ?? "").trim(),
+    since_date: input.since_date || null,
     until_date: input.until_date || null,
-    created_by: me.id,
-    created_email: me.email,
+    created_by: me,
+    created_email: meProfile?.email ?? "",
+    created_name: meProfile?.full_name ?? "",
   });
   if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
 

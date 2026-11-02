@@ -13,9 +13,11 @@ export type Pendiente = {
   title: string;
   detail: string;
   created_email: string;
+  created_name: string;
   created_at: string;
   done: boolean;
   done_email: string;
+  done_name: string;
   done_at: string | null;
   done_note: string;
 };
@@ -142,7 +144,7 @@ export function PendientesView({
                   <p className="mt-1 text-sm text-red-700/90 whitespace-pre-wrap">{p.detail}</p>
                 )}
                 <p className="mt-1.5 text-[11px] text-red-400">
-                  {p.created_email} · {fmtDateTimeBO(p.created_at)}
+                  {p.created_name || p.created_email} · {fmtDateTimeBO(p.created_at)}
                 </p>
               </div>
               {isAdmin && (
@@ -219,7 +221,7 @@ export function PendientesView({
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                   <span className="font-semibold text-emerald-700">
-                    Gestionado por {p.done_email}
+                    Gestionado por {p.done_name || p.done_email}
                   </span>{" "}
                   · {p.done_at ? fmtDateTimeBO(p.done_at) : ""}
                 </p>
