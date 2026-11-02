@@ -286,6 +286,57 @@ export async function saveArticle(input: {
   return { ok: true, id: data.id };
 }
 
+/** Guarda el árbol completo del índice: orden (position) y anidación (parent_id). */
+export async function saveArticleTree(
+  items: { id: number; parent_id: number | null }[]
+): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return { ok: false, error: "Árbol vacío." };
+  }
+
+  // Validar: sin ciclos en la cadena de padres
+  const parentOf = new Map(items.map((i) => [i.id, i.parent_id]));
+  for (const it of items) {
+    let cur = it.parent_id;
+    for (let depth = 0; depth < 20 && cur; depth++) {
+      if (cur === it.id)
+        return { ok: false, error: "Estructura inválida: hay un ciclo." };
+      cur = parentOf.get(cur) ?? null;
+    }
+  }
+
+  const supabase = await createClient();
+  const { data: current } = await supabase
+    .from("articles")
+    .select("id, parent_id, position");
+  const byId = new Map((current ?? []).map((a) => [a.id, a]));
+
+  // position = índice del array aplanado (raíces e hijos en orden)
+  const updates = items
+    .map((it, idx) => ({ ...it, position: idx }))
+    .filter((it) => {
+      const c = byId.get(it.id);
+      return !c || c.parent_id !== it.parent_id || c.position !== it.position;
+    });
+
+  for (const u of updates) {
+    const { error } = await supabase
+      .from("articles")
+      .update({ parent_id: u.parent_id, position: u.position })
+      .eq("id", u.id);
+    if (error) return { ok: false, error: `No se pudo reordenar: ${error.message}` };
+  }
+
+  await audit("articles_reorder", `${updates.length} artículo(s) reordenados/agrupados`);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function deleteArticle(id: number): Promise<Result> {
   try {
     await requireAdmin();
