@@ -135,7 +135,7 @@ export function RotaView({
     if (!file) return;
     setErr(null);
     try {
-      const XLSX = (await import("xlsx")).default;
+      const XLSX = await import("xlsx").then((m) => m.default ?? m);
       const wb = XLSX.read(await file.arrayBuffer());
       const sheets = new Map<string, unknown[][]>(
         wb.SheetNames.map((name) => [
@@ -150,7 +150,8 @@ export function RotaView({
         return setErr("No se encontraron hojas con formato ROTA (Nombre + días).");
       setImpSheets(sheets);
       pickSheet(valid[valid.length - 1], sheets); // última semana por defecto
-    } catch {
+    } catch (e) {
+      console.error("Error leyendo Excel:", e);
       setErr("No se pudo leer el archivo. Debe ser .xlsx");
     }
   }
