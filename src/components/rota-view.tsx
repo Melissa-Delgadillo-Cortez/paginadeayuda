@@ -7,7 +7,7 @@ import {
   saveShifts,
   importRota,
 } from "@/app/(app)/admin/actions";
-import { detectRotaSheets, parseRotaSheet } from "@/lib/parse-rota.mjs";
+
 
 type Operator = { id: number; name: string; position: number };
 type ParsedDay = {
@@ -19,6 +19,11 @@ type ImpRow = {
   name: string;
   days: ParsedDay[];
   sel: number | "new" | "skip";
+};
+type ParsedSheet = {
+  name: string;
+  operators: { name: string; days: ParsedDay[] }[];
+  warnings: string[];
 };
 type Shift = {
   id: number;
@@ -79,7 +84,7 @@ export function RotaView({
 
   // ---- Importar Excel ----
   const fileRef = useRef<HTMLInputElement>(null);
-  const [impSheets, setImpSheets] = useState<Map<string, unknown[][]> | null>(null);
+  const [impSheets, setImpSheets] = useState<Map<string, ParsedSheet> | null>(null);
   const [impSheet, setImpSheet] = useState("");
   const [impRows, setImpRows] = useState<ImpRow[]>([]);
 
@@ -135,38 +140,38 @@ export function RotaView({
     if (!file) return;
     setErr(null);
     try {
-      const XLSX = await import("xlsx").then((m) => m.default ?? m);
-      const wb = XLSX.read(await file.arrayBuffer());
-      const sheets = new Map<string, unknown[][]>(
-        wb.SheetNames.map((name) => [
-          name,
-          XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "" }) as unknown[][],
-        ])
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/parse-rota", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || data.error)
+        return setErr(data.error ?? "No se pudo leer el archivo.");
+      const sheets = new Map<string, ParsedSheet>(
+        (data.sheets as ParsedSheet[]).map((s) => [s.name, s])
       );
-      const valid = detectRotaSheets(
-        wb.SheetNames.map((name) => ({ name, rows: sheets.get(name)! }))
-      );
-      if (valid.length === 0)
-        return setErr("No se encontraron hojas con formato ROTA (Nombre + días).");
+      if (sheets.size === 0)
+        return setErr("No se encontraron hojas con formato ROTA.");
       setImpSheets(sheets);
-      pickSheet(valid[valid.length - 1], sheets); // última semana por defecto
+      pickSheet(data.sheets[data.sheets.length - 1].name, sheets);
     } catch (e) {
       console.error("Error leyendo Excel:", e);
       setErr("No se pudo leer el archivo. Debe ser .xlsx");
     }
   }
 
-  function pickSheet(name: string, sheets?: Map<string, unknown[][]>) {
+  function pickSheet(name: string, sheets?: Map<string, ParsedSheet>) {
     const map = sheets ?? impSheets;
     if (!map) return;
     setImpSheet(name);
-    const { operators: ops, warnings } = parseRotaSheet(map.get(name) ?? []);
+    const parsed = map.get(name);
+    const ops = parsed?.operators ?? [];
     setImpRows(
-      (ops as Omit<ImpRow, "sel">[]).map((o) => ({
+      ops.map((o) => ({
         ...o,
         sel: autoMatch(o.name),
       }))
     );
+    const warnings = parsed?.warnings ?? [];
     if (warnings.length > 0)
       setErr(`Avisos del archivo: ${warnings.slice(0, 3).join(" · ")}${warnings.length > 3 ? "…" : ""}`);
   }
