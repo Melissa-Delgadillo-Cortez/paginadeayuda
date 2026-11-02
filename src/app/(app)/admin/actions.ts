@@ -43,6 +43,16 @@ async function audit(event: string, detail: string) {
   }
 }
 
+/** Verifica sesión (cualquier rol). Devuelve {id,email} o lanza error. */
+async function requireUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+  return { id: user.id, email: user.email ?? "" };
+}
+
 /** Llamada por cualquier usuario tras iniciar sesión (RLS exige user_id propio). */
 export async function logLogin(): Promise<Result> {
   const supabase = await createClient();
@@ -686,3 +696,131 @@ export async function importRota(
   return { ok: true, created, updated };
 }
 
+
+/* ==================== PENDIENTES ==================== */
+
+export async function createPendiente(input: {
+  title: string;
+  detail?: string;
+}): Promise<Result> {
+  let me;
+  try {
+    me = await requireUser();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const title = input.title.trim();
+  if (!title) return { ok: false, error: "El pendiente necesita un título." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("pendientes").insert({
+    title,
+    detail: (input.detail ?? "").trim(),
+    created_by: me.id,
+    created_email: me.email,
+  });
+  if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+
+  await audit("pendiente_create", title);
+  revalidatePath("/pendientes");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function gestionarPendiente(
+  id: number,
+  note: string
+): Promise<Result> {
+  let me;
+  try {
+    me = await requireUser();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const done_note = note.trim();
+  if (!done_note)
+    return { ok: false, error: "Explica brevemente qué gestión se hizo." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("pendientes")
+    .update({
+      done: true,
+      done_by: me.id,
+      done_email: me.email,
+      done_at: new Date().toISOString(),
+      done_note,
+    })
+    .eq("id", id)
+    .eq("done", false);
+  if (error) return { ok: false, error: `No se pudo gestionar: ${error.message}` };
+
+  await audit("pendiente_done", `Pendiente #${id}`);
+  revalidatePath("/pendientes");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deletePendiente(id: number): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("pendientes").delete().eq("id", id);
+  if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
+  await audit("pendiente_delete", `Pendiente #${id}`);
+  revalidatePath("/pendientes");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/* ==================== AVISOS (ausentes / vacaciones) ==================== */
+
+export async function createAviso(input: {
+  person: string;
+  tipo: "ausente" | "vacaciones" | "otro";
+  detail?: string;
+  until_date?: string | null;
+}): Promise<Result> {
+  let me;
+  try {
+    me = await requireUser();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const person = input.person.trim();
+  if (!person) return { ok: false, error: "Indica el nombre del ejecutivo." };
+  if (!["ausente", "vacaciones", "otro"].includes(input.tipo))
+    return { ok: false, error: "Tipo inválido." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("avisos").insert({
+    person,
+    tipo: input.tipo,
+    detail: (input.detail ?? "").trim(),
+    until_date: input.until_date || null,
+    created_by: me.id,
+    created_email: me.email,
+  });
+  if (error) return { ok: false, error: `No se pudo guardar: ${error.message}` };
+
+  await audit("aviso_create", `${person} (${input.tipo})`);
+  revalidatePath("/avisos");
+  return { ok: true };
+}
+
+export async function deleteAviso(id: number): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("avisos").delete().eq("id", id);
+  if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
+  await audit("aviso_delete", `Aviso #${id}`);
+  revalidatePath("/avisos");
+  return { ok: true };
+}

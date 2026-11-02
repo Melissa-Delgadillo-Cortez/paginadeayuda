@@ -18,6 +18,13 @@ const LABELS: Record<string, { label: string; cls: string }> = {
   operator_update: { label: "Operador editado", cls: "bg-slate-100 text-slate-600" },
   operator_delete: { label: "Operador eliminado", cls: "bg-slate-100 text-slate-600" },
   shifts_update: { label: "Horario editado", cls: "bg-slate-100 text-slate-600" },
+  rota_import: { label: "ROTA importada", cls: "bg-lbc/10 text-lbc" },
+  articles_reorder: { label: "Índice reordenado", cls: "bg-slate-100 text-slate-600" },
+  pendiente_create: { label: "Pendiente creado", cls: "bg-red-100 text-red-700" },
+  pendiente_done: { label: "Pendiente gestionado", cls: "bg-emerald-100 text-emerald-700" },
+  pendiente_delete: { label: "Pendiente eliminado", cls: "bg-slate-100 text-slate-600" },
+  aviso_create: { label: "Aviso creado", cls: "bg-amber-100 text-amber-700" },
+  aviso_delete: { label: "Aviso eliminado", cls: "bg-slate-100 text-slate-600" },
 };
 
 export default async function BitacoraPage() {
