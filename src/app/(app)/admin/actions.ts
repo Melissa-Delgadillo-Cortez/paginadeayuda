@@ -855,3 +855,59 @@ export async function clearGestionados(): Promise<Result> {
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/* ==================== IMPORTAR TURNOS DE EJECUTIVOS (Excel) ==================== */
+
+const normName = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Asigna turnos desde Excel: crea contactos que falten y fija start_at/end_at. */
+export async function importContacts(input: {
+  area: string;
+  grp: string;
+  rows: { name: string; since: string | null; until: string | null }[];
+}): Promise<Result> {
+  try {
+    await requireAdmin();
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const area = input.area.trim();
+  const grp = input.grp.trim();
+  if (!area) return { ok: false, error: "Selecciona el área." };
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("contacts")
+    .select("id, person")
+    .eq("area", area)
+    .eq("grp", grp);
+  const map = new Map((existing ?? []).map((c) => [normName(c.person), c.id]));
+
+  let maxPos = 0;
+  const { data: posRows } = await supabase
+    .from("contacts").select("position").order("position", { ascending: false }).limit(1);
+  maxPos = posRows?.[0]?.position ?? 0;
+
+  let created = 0, updated = 0;
+  for (const r of input.rows) {
+    const start_at = r.since ? `${r.since}T00:00:00-04:00` : null;
+    const end_at = r.until ? `${r.until}T23:59:59-04:00` : null;
+    const found = map.get(normName(r.name));
+    if (found) {
+      const { error } = await supabase.from("contacts")
+        .update({ start_at, end_at, duty_type: "principal" }).eq("id", found);
+      if (!error) updated++;
+    } else {
+      const { error } = await supabase.from("contacts").insert({
+        person: r.name, area, grp, start_at, end_at,
+        duty_type: "principal", position: ++maxPos,
+      });
+      if (!error) created++;
+    }
+  }
+  await audit("contact_import", `${area}/${grp}: ${updated} actualizados, ${created} creados`);
+  revalidatePath("/contactos");
+  revalidatePath("/admin/contactos");
+  return { ok: true };
+}
