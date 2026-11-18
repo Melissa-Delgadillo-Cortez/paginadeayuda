@@ -16,6 +16,17 @@ export function LinksManager({
   const [editing, setEditing] = useState<Partial<LinkRow> | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  const norm = (s: string) =>
+    s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  const filtered = [...links]
+    .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
+    .filter(
+      (l) =>
+        norm(l.name).includes(norm(query)) || norm(l.url).includes(norm(query))
+    );
 
   function flash(m: string) {
     setMsg(m);
@@ -103,13 +114,29 @@ export function LinksManager({
         </div>
       )}
 
-      {links.length === 0 ? (
+      <div className="mb-4">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar enlace…"
+          className="w-full max-w-sm rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-lbc"
+        />
+        {query && (
+          <p className="mt-1 text-xs text-slate-400">
+            {filtered.length} de {links.length}
+          </p>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
         <p className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
-          Aún no hay enlaces.{isAdmin ? " Agrega el primero con «+ Nuevo enlace»." : ""}
+          {query
+            ? "Sin resultados para esa búsqueda."
+            : `Aún no hay enlaces.${isAdmin ? " Agrega el primero con «+ Nuevo enlace»." : ""}`}
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {links.map((l) => (
+          {filtered.map((l) => (
             <div
               key={l.id}
               className="group relative rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:border-lbc hover:shadow"
