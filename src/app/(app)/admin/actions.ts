@@ -423,8 +423,9 @@ export async function incidentReassign(input: {
   email?: string;
   reason: string;
 }): Promise<Result> {
+  let adminId: string;
   try {
-    await requireAdmin();
+    adminId = await requireAdmin();
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
@@ -469,6 +470,23 @@ export async function incidentReassign(input: {
     position: cur.position + 1,
   });
   if (insErr) return { ok: false, error: `No se pudo asignar el reemplazo: ${insErr.message}` };
+
+  // Aviso automático: la reasignación se refleja en /avisos
+  const { data: ap } = await supabase
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", adminId)
+    .single();
+  await supabase.from("avisos").insert({
+    person: cur.person,
+    tipo: "otro",
+    detail: `Reasignación de turno (${cur.area} · ${cur.grp}): ${cur.person} → ${person}. Motivo: ${input.reason.trim()}.`,
+    since_date: nowIso.slice(0, 10),
+    until_date: cur.end_at ? new Date(cur.end_at).toISOString().slice(0, 10) : null,
+    created_by: adminId,
+    created_email: ap?.email ?? "",
+    created_name: ap?.full_name ?? "",
+  });
 
   await audit("incident", `${cur.area} · ${cur.grp}: ${note.value}`);
   revalidatePath("/contactos");
@@ -546,6 +564,7 @@ export type ShiftInput = {
   start_min: number;
   end_min: number;
   is_libre: boolean;
+  kind?: string; // normal | libre | vacaciones | extra | baja
 };
 
 export async function saveOperator(input: {
@@ -607,6 +626,9 @@ export async function saveShifts(
       start_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.start_min)),
       end_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.end_min)),
       is_libre: !!s.is_libre,
+      kind: ["libre", "vacaciones", "extra", "baja"].includes(s.kind ?? "")
+        ? s.kind
+        : "normal",
     }));
   if (clean.length === 0) return { ok: false, error: "Sin días que guardar." };
 
@@ -689,6 +711,7 @@ export async function importRota(
         start_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.start_min)),
         end_min: s.is_libre ? 0 : Math.max(0, Math.min(1439, s.end_min)),
         is_libre: !!s.is_libre,
+        kind: "normal",
       }));
     if (rows.length > 0) {
       const { error } = await supabase.from("operator_shifts").insert(rows);

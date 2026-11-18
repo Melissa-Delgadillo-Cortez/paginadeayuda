@@ -33,6 +33,7 @@ type Shift = {
   start_min: number;
   end_min: number;
   is_libre: boolean;
+  kind?: string; // normal | libre | vacaciones | extra | baja
 };
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
@@ -46,7 +47,7 @@ const strToMin = (s: string) => {
 
 /** dow 0=lunes..6=domingo ; turnos con fin<=inicio cruzan medianoche */
 function isOnShift(s: Shift, dow: number, min: number) {
-  if (s.dow !== dow || s.is_libre) return false;
+  if (s.dow !== dow || s.is_libre || s.kind === "baja") return false;
   if (s.start_min < s.end_min) return min >= s.start_min && min < s.end_min;
   return min >= s.start_min || min < s.end_min;
 }
@@ -69,7 +70,7 @@ export function RotaView({
   const [editName, setEditName] = useState("");
   const [week, setWeek] = useState<
     {
-      libre: boolean;
+      kind: string;
       t1s: string;
       t1e: string;
       hasT2: boolean;
@@ -219,8 +220,14 @@ export function RotaView({
           .sort((a, b) => a.block - b.block);
         const b1 = dayRows.find((r) => r.block === 1);
         const b2 = dayRows.find((r) => r.block === 2);
+        const kind = dayRows.some((r) => r.is_libre)
+          ? dayRows.some((r) => r.kind === "vacaciones")
+            ? "vacaciones"
+            : "libre"
+          : dayRows.find((r) => r.kind && r.kind !== "normal")?.kind ??
+            "normal";
         return {
-          libre: dayRows.some((r) => r.is_libre),
+          kind,
           t1s: b1 ? minToStr(b1.start_min) : "08:00",
           t1e: b1 ? minToStr(b1.end_min) : "13:00",
           hasT2: !!b2,
@@ -260,9 +267,13 @@ export function RotaView({
       const res = await saveShifts(
         selOp.id,
         week.flatMap((d, dow) => {
-          if (d.libre)
+          const kind = ["libre", "vacaciones", "extra", "baja"].includes(d.kind)
+            ? d.kind
+            : "normal";
+          const libre = kind === "libre" || kind === "vacaciones";
+          if (libre)
             return [
-              { dow, block: 1, start_min: 0, end_min: 0, is_libre: true },
+              { dow, block: 1, start_min: 0, end_min: 0, is_libre: true, kind },
             ];
           const rows = [
             {
@@ -271,6 +282,7 @@ export function RotaView({
               start_min: strToMin(d.t1s || "0:0"),
               end_min: strToMin(d.t1e || "0:0"),
               is_libre: false,
+              kind,
             },
           ];
           if (d.hasT2)
@@ -280,6 +292,7 @@ export function RotaView({
               start_min: strToMin(d.t2s || "0:0"),
               end_min: strToMin(d.t2e || "0:0"),
               is_libre: false,
+              kind,
             });
           return rows;
         })
@@ -567,14 +580,36 @@ export function RotaView({
                       {rows.length === 0 ? (
                         <span className="text-slate-400">Sin horario</span>
                       ) : rows[0].is_libre ? (
-                        <span className="font-semibold text-amber-600">Libre</span>
+                        <span
+                          className={`font-semibold ${
+                            rows[0].kind === "vacaciones"
+                              ? "text-sky-600"
+                              : "text-amber-600"
+                          }`}
+                        >
+                          {rows[0].kind === "vacaciones" ? "Vacaciones" : "Libre"}
+                        </span>
                       ) : (
                         rows
                           .filter((r) => !r.is_libre)
-                          .map(
-                            (r) => `${minToStr(r.start_min)} – ${minToStr(r.end_min)}`
-                          )
-                          .join("  ·  ")
+                          .map((r) => (
+                            <span key={r.id} className="mr-2 inline-block last:mr-0">
+                              {r.kind === "extra" && (
+                                <span className="mr-1 rounded bg-sky-100 px-1 py-0.5 text-[9px] font-bold text-sky-700">
+                                  EXTRA
+                                </span>
+                              )}
+                              {r.kind === "baja" && (
+                                <span className="mr-1 rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold text-red-700">
+                                  BAJA
+                                </span>
+                              )}
+                              {`${minToStr(r.start_min)} – ${minToStr(r.end_min)}`}
+                              {r.kind === "baja" && (
+                                <span className="ml-1 text-[10px] text-red-400">(permiso)</span>
+                              )}
+                            </span>
+                          ))
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-xs">
@@ -608,22 +643,24 @@ export function RotaView({
                 className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2"
               >
                 <span className="w-24 text-xs font-semibold text-slate-700">{d}</span>
-                <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={week[dow]?.libre ?? false}
-                    onChange={(e) =>
-                      setWeek(
-                        week.map((w, i) =>
-                          i === dow ? { ...w, libre: e.target.checked } : w
-                        )
+                <select
+                  value={week[dow]?.kind ?? "normal"}
+                  onChange={(e) =>
+                    setWeek(
+                      week.map((w, i) =>
+                        i === dow ? { ...w, kind: e.target.value } : w
                       )
-                    }
-                    className="h-4 w-4 rounded accent-amber-500"
-                  />
-                  Libre
-                </label>
-                {!week[dow]?.libre && (
+                    )
+                  }
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold outline-none focus:border-lbc"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="libre">Libre</option>
+                  <option value="vacaciones">Vacaciones</option>
+                  <option value="extra">Extra</option>
+                  <option value="baja">Baja/permiso</option>
+                </select>
+                {!["libre", "vacaciones"].includes(week[dow]?.kind ?? "normal") && (
                   <>
                     <span className="text-[10px] font-semibold text-slate-400">
                       T1
